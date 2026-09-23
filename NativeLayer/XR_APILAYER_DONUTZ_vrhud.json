@@ -1,0 +1,14 @@
+{
+  "file_format_version": "1.0.0",
+  "api_layer": {
+    "name": "XR_APILAYER_DONUTZ_vrhud",
+    "library_path": ".\\DonutzVrHudLayer.dll",
+    "api_version": "1.0",
+    "implementation_version": "1",
+    "description": "Donutz VR HUD - injects configurable overlay panels (SimHub dashboards, window captures) as composition layer quads into the host application's existing OpenXR session.",
+    "disable_environment": "DONUTZ_VR_HUD_DISABLE",
+    "functions": {
+      "xrNegotiateLoaderApiLayerInterface": "DonutzVrHud_xrNegotiateLoaderApiLayerInterface"
+    }
+  }
+}

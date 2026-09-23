@@ -1,0 +1,99 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
+    <RootNamespace>Donutz_VR_HUD</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <PlatformTarget>x64</PlatformTarget>
+    <!--
+      CefSharp's build targets only copy libcef.dll, the .pak resource
+      files, locales, and the BrowserSubprocess next to the output when
+      $(RuntimeIdentifier) is set to a concrete win-x64/win-arm64 RID (see
+      CefSharp.Common.NETCore.targets, which derives $(CefSharpRuntimeIdentifier)
+      from it). Without this, the app builds fine but CEF has none of its
+      native runtime files available at startup, so ChromiumWebBrowser never
+      actually renders anything (visible here as a permanently black
+      rectangle for both the test pattern and web dashboard).
+    -->
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>false</SelfContained>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <CsWinRTIncludes>Windows.Graphics.Capture;Windows.Graphics.DirectX;Windows.Graphics.DirectX.Direct3D11</CsWinRTIncludes>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Silk.NET.OpenXR" Version="2.22.0" />
+    <PackageReference Include="OpenXR.Loader" Version="1.0.10.2" />
+    <PackageReference Include="Silk.NET.Direct3D11" Version="2.22.0" />
+    <PackageReference Include="Silk.NET.DXGI" Version="2.22.0" />
+    <PackageReference Include="Silk.NET.Core" Version="2.22.0" />
+    <PackageReference Include="CefSharp.OffScreen.NETCore" Version="136.1.40" />
+    <PackageReference Include="SharpDX.DirectInput" Version="4.2.0" />
+    <PackageReference Include="Silk.NET.OpenXR.Extensions.KHR" Version="2.22.0" />
+  </ItemGroup>
+
+  <!--
+    Only the System.Windows.Forms.ColorDialog control is needed (for the
+    Visor tint color picker in MainWindow.xaml.cs) - not the full WinForms
+    designer/implicit-usings setup that <UseWindowsForms>true</UseWindowsForms>
+    would bring in, which causes CS0104 ambiguous-reference build errors
+    throughout the app (System.Windows.Forms.Application/MessageBox/Brush(es)/
+    KeyEventArgs/Binding all collide with their WPF (System.Windows.*)
+    namesakes that are already used everywhere here). A plain FrameworkReference
+    exposes the assembly without those global usings.
+  -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.WindowsDesktop.App.WindowsForms" />
+  </ItemGroup>
+
+  <!--
+    OpenXR.Loader ships as a native (C++) props/targets package, which does not
+    automatically copy openxr_loader.dll into an SDK-style .NET output folder.
+    Reference the DLL directly from the NuGet cache so Silk.NET.OpenXR (which
+    P/Invokes into openxr_loader.dll) can find it at runtime.
+  -->
+  <ItemGroup>
+    <None Include="$(NuGetPackageRoot)openxr.loader\1.0.10.2\native\x64\release\bin\openxr_loader.dll" Condition="Exists('$(NuGetPackageRoot)openxr.loader\1.0.10.2\native\x64\release\bin\openxr_loader.dll')">
+      <Link>openxr_loader.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include=".github\copilot-instructions.md" />
+    <None Include="NativeLayer\NativeLayer.vcxproj" />
+  </ItemGroup>
+
+  <!--
+    Copy the native OpenXR API layer's build output (DonutzVrHudLayer.dll +
+    XR_APILAYER_DONUTZ_vrhud.json) next to this app's own .exe, if it has
+    been built (see NativeLayer/README.md). This lets the "Layer
+    registrieren" button in the UI find the manifest without a manual copy
+    step after building NativeLayer.vcxproj.
+
+    Uses an explicit AfterTargets="Build" Copy step (SkipUnchangedFiles is
+    false) instead of relying only on CopyToOutputDirectory/None items,
+    because NativeLayer.vcxproj is not a project reference: MSBuild's
+    incremental "PreserveNewest" copy-tracking cache does not reliably
+    notice that the native DLL changed when only NativeLayer.vcxproj was
+    rebuilt, so a stale DLL could otherwise linger in the output folder.
+  -->
+  <ItemGroup>
+    <NativeLayerOutput Include="NativeLayer\x64\Release\DonutzVrHudLayer.dll" Condition="Exists('NativeLayer\x64\Release\DonutzVrHudLayer.dll')" />
+    <NativeLayerOutput Include="NativeLayer\x64\Release\XR_APILAYER_DONUTZ_vrhud.json" Condition="Exists('NativeLayer\x64\Release\XR_APILAYER_DONUTZ_vrhud.json')" />
+  </ItemGroup>
+
+  <!--
+    Deliberately no Inputs/Outputs on this target: MSBuild's incremental
+    up-to-date check compares only file timestamps at the target level, which
+    previously caused the whole Copy step to be skipped even though the
+    native DLL had actually changed (see comment above). Always running the
+    Copy (with SkipUnchangedFiles="false") is cheap and guarantees the
+    latest NativeLayer build is deployed.
+  -->
+  <Target Name="CopyNativeLayerOutput" AfterTargets="Build">
+    <Copy SourceFiles="@(NativeLayerOutput)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="false" />
+  </Target>
+
+</Project>

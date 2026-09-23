@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+	<ProjectConfiguration Include="Debug|x64">
+	  <Configuration>Debug</Configuration>
+	  <Platform>x64</Platform>
+	</ProjectConfiguration>
+	<ProjectConfiguration Include="Release|x64">
+	  <Configuration>Release</Configuration>
+	  <Platform>x64</Platform>
+	</ProjectConfiguration>
+  </ItemGroup>
+
+  <PropertyGroup Label="Globals">
+	<ProjectGuid>{6E2C9E0E-6B0B-4C7B-9C9C-1D9C0B7F5E11}</ProjectGuid>
+	<Keyword>Win32Proj</Keyword>
+	<RootNamespace>DonutzVrHudLayer</RootNamespace>
+	<WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+
+  <PropertyGroup Label="Configuration">
+	<ConfigurationType>DynamicLibrary</ConfigurationType>
+	<PlatformToolset>v145</PlatformToolset>
+	<CharacterSet>Unicode</CharacterSet>
+	<UseOfMfc>false</UseOfMfc>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='Debug'" Label="Configuration">
+	<UseDebugLibraries>true</UseDebugLibraries>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='Release'" Label="Configuration">
+	<UseDebugLibraries>false</UseDebugLibraries>
+	<WholeProgramOptimization>true</WholeProgramOptimization>
+  </PropertyGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+
+  <PropertyGroup>
+	<TargetName>DonutzVrHudLayer</TargetName>
+  </PropertyGroup>
+
+  <PropertyGroup>
+	<!--
+	  Set this to the directory containing the OpenXR SDK "include" folder
+	  (openxr/openxr.h, openxr/loader_interfaces.h, ...), e.g. via a
+	  NativeLayer.vcxproj.user override or an OPENXR_SDK_INCLUDE
+	  environment variable, since the SDK headers are not vendored in this
+	  repo. See ../README.md for details.
+	-->
+	<OpenXrSdkInclude Condition="'$(OpenXrSdkInclude)'==''">$(OPENXR_SDK_INCLUDE)</OpenXrSdkInclude>
+  </PropertyGroup>
+
+  <ItemDefinitionGroup>
+	<ClCompile>
+	  <LanguageStandard>stdcpp20</LanguageStandard>
+	  <WarningLevel>Level3</WarningLevel>
+	  <AdditionalIncludeDirectories>$(OpenXrSdkInclude);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+	  <PreprocessorDefinitions>WIN32;_WINDOWS;_USRDLL;DONUTZVRHUDLAYER_EXPORTS;XR_USE_GRAPHICS_API_D3D11;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+	</ClCompile>
+	<Link>
+	  <ModuleDefinitionFile>DonutzVrHudLayer.def</ModuleDefinitionFile>
+	  <SubSystem>Windows</SubSystem>
+	  <AdditionalDependencies>d3d11.lib;%(AdditionalDependencies)</AdditionalDependencies>
+	</Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Debug'">
+	<ClCompile>
+	  <Optimization>Disabled</Optimization>
+	</ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Release'">
+	<ClCompile>
+	  <Optimization>MaxSpeed</Optimization>
+	  <FunctionLevelLinking>true</FunctionLevelLinking>
+	  <IntrinsicFunctions>true</IntrinsicFunctions>
+	</ClCompile>
+	<Link>
+	  <EnableCOMDATFolding>true</EnableCOMDATFolding>
+	  <OptimizeReferences>true</OptimizeReferences>
+	</Link>
+  </ItemDefinitionGroup>
+
+  <ItemGroup>
+	<ClInclude Include="ApiLayerInterface.h" />
+	<ClInclude Include="ControllerInput.h" />
+	<ClInclude Include="HookedFunctions.h" />
+	<ClInclude Include="IpcServer.h" />
+	<ClInclude Include="Logging.h" />
+  </ItemGroup>
+  <ItemGroup>
+	<ClCompile Include="ApiLayerInterface.cpp" />
+	<ClCompile Include="ControllerInput.cpp" />
+	<ClCompile Include="HookedFunctions.cpp" />
+	<ClCompile Include="IpcServer.cpp" />
+	<ClCompile Include="Logging.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+	<None Include="DonutzVrHudLayer.def" />
+	<None Include="XR_APILAYER_DONUTZ_vrhud.json">
+	  <DeploymentContent>true</DeploymentContent>
+	</None>
+  </ItemGroup>
+
+  <!--
+	Copy the JSON manifest next to the built DLL so the two files stay
+	together for dev registration (register-dev-layer.ps1 points at the
+	output directory).
+  -->
+  <ItemGroup>
+	<None Update="XR_APILAYER_DONUTZ_vrhud.json">
+	  <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+	</None>
+  </ItemGroup>
+
+  <!--
+	The registered OpenXR API layer manifest (see
+	OpenXR/OpenXrLayerRegistration.cs) points at
+	<WPF app output dir>\XR_APILAYER_DONUTZ_vrhud.json, i.e. this DLL is
+	loaded from next to Donutz VR HUD.exe, not from this project's own
+	output directory. Copy both files there after every build so a native
+	layer rebuild actually takes effect the next time the host app (e.g.
+	iRacing) is started - otherwise the stale DLL keeps being loaded and
+	native-side changes silently appear to do nothing. Errors are ignored
+	(2>nul + exit 0) since the target file can be locked while the host VR
+	app is still running; in that case the copy has to be redone manually
+	after closing it.
+  -->
+  <PropertyGroup>
+	<DonutzVrHudWpfOutDir>$(ProjectDir)..\bin\$(Configuration)\net10.0-windows10.0.19041.0\win-x64\</DonutzVrHudWpfOutDir>
+  </PropertyGroup>
+  <Target Name="CopyLayerToWpfOutput" AfterTargets="Build">
+	<Message Importance="high" Text="Copying native OpenXR layer to '$(DonutzVrHudWpfOutDir)' (used by Donutz VR HUD.exe / iRacing)..." />
+	<ItemGroup>
+	  <DonutzVrHudLayerFiles Include="$(OutDir)DonutzVrHudLayer.dll" />
+	  <DonutzVrHudLayerFiles Include="$(OutDir)XR_APILAYER_DONUTZ_vrhud.json" />
+	</ItemGroup>
+	<Copy
+	  SourceFiles="@(DonutzVrHudLayerFiles)"
+	  DestinationFolder="$(DonutzVrHudWpfOutDir)"
+	  SkipUnchangedFiles="true"
+	  ContinueOnError="WarnAndContinue"
+	  Condition="Exists('$(DonutzVrHudWpfOutDir)')" />
+  </Target>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

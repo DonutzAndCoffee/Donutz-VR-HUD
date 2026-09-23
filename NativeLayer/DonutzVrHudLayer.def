@@ -1,0 +1,4 @@
+LIBRARY DonutzVrHudLayer
+
+EXPORTS
+	DonutzVrHud_xrNegotiateLoaderApiLayerInterface
