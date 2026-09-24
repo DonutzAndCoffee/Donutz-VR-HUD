@@ -31,6 +31,15 @@ namespace Donutz_VR_HUD.Shared
         Recenter = 4,
 
         /// <summary>
+        /// Client -> server: tells the native layer whether the app's edit
+        /// mode is currently active. VR controller input (grabbing/nudging
+        /// panels) is only processed by NativeLayer/ControllerInput.cpp
+        /// while this is true, so the controllers stay inert unless the
+        /// user has explicitly enabled Edit Mode in the GUI.
+        /// </summary>
+        SetEditModeActive = 5,
+
+        /// <summary>
         /// Server -> client: a VR controller grab ended, reporting the
         /// panel's final position/rotation so the app can update its
         /// <c>OverlayPanel</c> model and persist it. See
@@ -114,6 +123,13 @@ namespace Donutz_VR_HUD.Shared
     }
 
     // Recenter has no payload.
+
+    /// <summary>Client -> server. See <see cref="OverlayIpcMessageType.SetEditModeActive"/>.</summary>
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    public struct SetEditModeActiveMessage
+    {
+        [MarshalAs(UnmanagedType.I1)] public bool Active;
+    }
 
     /// <summary>Server -> client. See <see cref="OverlayIpcMessageType.PanelTransformUpdated"/>.</summary>
     [StructLayout(LayoutKind.Sequential, Pack = 1)]

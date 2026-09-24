@@ -23,6 +23,8 @@ namespace Donutz_VR_HUD
         {
             base.OnStartup(e);
 
+            Wpf.Ui.Appearance.ApplicationThemeManager.Apply(Wpf.Ui.Appearance.ApplicationTheme.Dark);
+
             var settings = new CefSettings
             {
                 // Off-screen rendering: no native browser window is created;

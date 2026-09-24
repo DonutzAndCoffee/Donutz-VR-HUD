@@ -52,6 +52,40 @@ namespace Donutz_VR_HUD.OpenXR
                 "DonutzVrHud",
                 "LogLevel.txt");
 
+        /// <summary>
+        /// Appends a managed-side diagnostic line (e.g. "new game session
+        /// detected: AssettoCorsa") to the same log file the native layer
+        /// writes to (see NativeLayer/Logging.cpp), tagged with "[App]" so
+        /// it's visually distinguishable from native entries. This lets the
+        /// user (and us, when debugging pipe-connection timing issues like
+        /// the one seen with Assetto Corsa/LMU) correlate exactly when a
+        /// game/session was detected against when the native layer
+        /// negotiated/created its OpenXR instance and IPC pipe, all in one
+        /// place (the "Native layer log" view in the UI).
+        ///
+        /// Uses FileShare.ReadWrite/Append so this doesn't fight the native
+        /// layer, which may have the file open concurrently; failures (e.g.
+        /// a momentary sharing violation) are swallowed since this is
+        /// diagnostic-only and must never affect app behavior.
+        /// </summary>
+        public static void AppendAppLogEntry(string message)
+        {
+            try
+            {
+                var path = NativeLayerLogPath;
+                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+                using var stream = new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.ReadWrite);
+                using var writer = new StreamWriter(stream);
+                writer.WriteLine($"[{DateTime.Now:HH:mm:ss.fff}] [App] {message}");
+            }
+            catch (IOException)
+            {
+            }
+            catch (UnauthorizedAccessException)
+            {
+            }
+        }
+
         private NamedPipeClientStream? _pipe;
         private readonly object _writeLock = new();
         private Task? _readLoopTask;
@@ -298,6 +332,17 @@ namespace Donutz_VR_HUD.OpenXR
         public void Recenter()
         {
             Send(OverlayIpcMessageType.Recenter, Array.Empty<byte>());
+        }
+
+        /// <summary>
+        /// Tells the native layer whether the app's edit mode is currently
+        /// active. VR controllers only grab/nudge panels while this is
+        /// true (see NativeLayer/ControllerInput.cpp).
+        /// </summary>
+        public void SetEditModeActive(bool active)
+        {
+            var message = new SetEditModeActiveMessage { Active = active };
+            Send(OverlayIpcMessageType.SetEditModeActive, StructToBytes(message));
         }
 
         private void Send(OverlayIpcMessageType type, byte[] payload)

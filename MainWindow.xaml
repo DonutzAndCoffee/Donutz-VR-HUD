@@ -6,7 +6,9 @@
         xmlns:local="clr-namespace:Donutz_VR_HUD"
         xmlns:models="clr-namespace:Donutz_VR_HUD.Models"
         mc:Ignorable="d"
-        Title="Donutz VR HUD" Height="940" Width="960">
+        Background="{DynamicResource ApplicationBackgroundBrush}"
+        Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+        Title="Donutz VR HUD" Height="940" Width="960" MinHeight="960" MinWidth="900">
     <Window.Resources>
         <local:SourceTypeCheckedConverter x:Key="SourceTypeConverter"/>
         <local:SourceTypeVisibilityConverter x:Key="SourceTypeVisibilityConverter"/>
@@ -18,19 +20,21 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="300"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            
         </Grid.RowDefinitions>
 
         <!-- Profile: save/load complete panel configurations, optionally
              tied to a specific simulation and/or car, with optional
              automatic loading when that simulation/car is detected. -->
-        <Border Grid.Row="0" BorderBrush="Gray" BorderThickness="1" CornerRadius="4" Padding="8" Margin="0,0,0,8">
+        <Border Grid.Row="0" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" Background="{DynamicResource ControlFillColorDefaultBrush}"  BorderThickness="1" CornerRadius="4" Padding="8" Margin="0,0,0,8">
+
+
             <StackPanel>
                 <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Profile.Header]}" FontWeight="Bold" Margin="0,0,0,8"/>
                 <Grid Margin="0,0,0,6">
@@ -56,12 +60,14 @@
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
+                    
                     <TextBlock Grid.Column="0" Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Profile.Game]}" VerticalAlignment="Center" Margin="0,0,4,0"/>
                     <ComboBox x:Name="ProfileGameComboBox" Grid.Column="1" Margin="0,0,12,0" IsEditable="True"
                               ItemsSource="{Binding RunningProcessNames}"/>
                     <TextBlock Grid.Column="2" Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Profile.Car]}" VerticalAlignment="Center" Margin="0,0,4,0"/>
                     <TextBox x:Name="ProfileCarTextBox" Grid.Column="3" Margin="0,0,4,0"/>
                     <Button Grid.Column="4" Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Profile.TakeCarFromSimHub]}" Click="TakeCarFromSimHubButton_Click"/>
+                    
                 </Grid>
                 <!-- Checkboxes and status text are split into two rows:
                      packing them into a single DockPanel left the
@@ -80,17 +86,28 @@
             </StackPanel>
         </Border>
 
-        <!-- Panel list header + add button -->
-        <DockPanel Grid.Row="1" Margin="0,0,0,8">
+
+
+
+        <!--<Border Grid.Row="3" Grid.RowSpan="3" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="2" CornerRadius="4" Margin="0,0,0,8" Background="{DynamicResource ControlFillColorDefaultBrush}" Padding="8">-->
+        <Border Grid.Row="4" Grid.RowSpan="3" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="2" CornerRadius="4" Margin="0,0,0,8" Background="#2D3D30" Padding="8">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="500"/>
+                </Grid.RowDefinitions>
+                <!-- Panel list header + add button -->
+        <DockPanel Grid.Row="0" Margin="0,0,0,8">
             <Button x:Name="AddPanelButton" DockPanel.Dock="Right" Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Panels.Add]}" Click="AddPanelButton_Click"/>
             <CheckBox x:Name="EditModeToggleCheckBox" DockPanel.Dock="Right" Content="Editiermodus"
                       Checked="EditModeToggle_Changed" Unchecked="EditModeToggle_Changed" VerticalAlignment="Center" Margin="0,0,16,0" FontWeight="Bold"/>
-            <ComboBox x:Name="LanguageComboBox" DockPanel.Dock="Right" Width="140" Margin="0,0,16,0" VerticalAlignment="Center"
+            <!--<ComboBox x:Name="LanguageComboBox" DockPanel.Dock="Right" Width="140" Margin="0,0,16,0" VerticalAlignment="Center"
                       SelectionChanged="LanguageComboBox_SelectionChanged">
                 <ComboBoxItem Content="Deutsch" Tag="de"/>
                 <ComboBoxItem Content="English" Tag="en"/>
             </ComboBox>
-            <TextBlock x:Name="LanguageLabelText" DockPanel.Dock="Right" Text="Sprache:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+            <TextBlock x:Name="LanguageLabelText" DockPanel.Dock="Right" Text="Sprache:" VerticalAlignment="Center" Margin="0,0,4,0"/>-->
             <Button x:Name="OverlayStatusButton" DockPanel.Dock="Right" Width="220" Height="28" Margin="0,0,16,0" Click="OverlayStatusButton_Click"
                     HorizontalContentAlignment="Left">
                 <Button.Content>
@@ -103,7 +120,10 @@
             <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panels.Header]}" VerticalAlignment="Center" FontWeight="Bold"/>
         </DockPanel>
 
-        <!-- Panel list. The row has a fixed height (see RowDefinitions
+                <!-- openXR Status block -->
+                <TextBlock x:Name="StatusText" Grid.Row="1" Margin="0,10,10,10" TextWrapping="Wrap" Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Status.Ready]}"/>
+
+                <!-- Panel list. The row has a fixed height (see RowDefinitions
              above) so the section neither collapses to nothing nor grows
              unpredictably (e.g. an Auto-sized row hosting a ScrollViewer
              can mis-measure on the first layout pass and re-expand once
@@ -156,7 +176,7 @@
                                                 Visibility="{Binding SourceType, Converter={StaticResource SourceTypeVisibilityConverter}, ConverterParameter=Visor}">
                                         <StackPanel Orientation="Horizontal">
                                             <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Start]}" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                            <Border Width="20" Height="20" BorderBrush="Black" BorderThickness="1" Margin="0,0,4,0"
+                                            <Border Width="20" Height="20" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="1" Margin="0,0,4,0"
                                                     Background="{Binding VisorColor, Converter={StaticResource HexColorToBrushConverter}}"/>
                                             <Button Content="..." Width="28" Click="PickVisorColorButton_Click" Tag="{Binding}" CommandParameter="Start" Margin="0,0,12,0"/>
                                             <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Opacity]}" VerticalAlignment="Center" Margin="0,0,4,0"/>
@@ -165,7 +185,7 @@
                                         </StackPanel>
                                         <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
                                             <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.End]}" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                            <Border Width="20" Height="20" BorderBrush="Black" BorderThickness="1" Margin="0,0,4,0"
+                                            <Border Width="20" Height="20" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="1" Margin="0,0,4,0"
                                                     Background="{Binding VisorEndColor, Converter={StaticResource HexColorToBrushConverter}}"/>
                                             <Button Content="..." Width="28" Click="PickVisorColorButton_Click" Tag="{Binding}" CommandParameter="End" Margin="0,0,12,0"/>
                                             <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Opacity]}" VerticalAlignment="Center" Margin="0,0,4,0"/>
@@ -274,12 +294,14 @@
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
         </ScrollViewer>
+            </Grid>
+        </Border>
 
         <!-- Edit-mode HUD: shown while the keyboard edit mode is active,
              overlaid in the corner of the window so the user can see the
              active panel, current mode/speed and the values being edited
              without needing to look at the panel list. -->
-        <Border x:Name="EditModeHudBorder" Grid.Row="0" Grid.RowSpan="9" Visibility="Collapsed"
+        <Border x:Name="EditModeHudBorder" Grid.Row="5" Grid.RowSpan="9" Visibility="Collapsed"
                 HorizontalAlignment="Right" VerticalAlignment="Top"
                 Background="#CC202020" BorderBrush="Orange" BorderThickness="2" CornerRadius="6"
                 Padding="12" Margin="0,0,8,8">
@@ -313,92 +335,117 @@
              rarely-changed setup steps, so they're tucked away in a
              collapsed Expander to keep the main window focused on the
              panels/profiles that are used day to day. -->
-        <Expander Grid.Row="4" Header="{Binding Source={x:Static local:Localization.Instance}, Path=[Global.Header]}" IsExpanded="False"
-                  BorderBrush="Gray" BorderThickness="1" Padding="8" Margin="0,0,0,8" FontWeight="Bold">
-            <StackPanel Margin="0,8,0,0">
-                <!-- VR Reset button binding -->
-                <Border BorderBrush="Gray" BorderThickness="1" CornerRadius="4" Padding="8" Margin="0,0,0,8">
-                    <StackPanel>
-                        <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Global.VrReset.Header]}" FontWeight="Bold" Margin="0,0,0,8"/>
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBlock x:Name="ResetBindingStatusText" Grid.Column="0" VerticalAlignment="Center" Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Global.VrReset.NoButton]}" Margin="0,0,8,0"/>
-                            <Button x:Name="LearnResetButton" Grid.Column="1" Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Global.VrReset.Learn]}" Click="LearnResetButton_Click" Margin="0,0,8,0"/>
-                            <Button x:Name="ManualResetButton" Grid.Column="2" Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Global.VrReset.ManualReset]}" Click="ManualResetButton_Click"/>
-                        </Grid>
-                    </StackPanel>
-                </Border>
+        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" MaxHeight="500">
+            <Expander  Header="{Binding Source={x:Static local:Localization.Instance}, Path=[Global.Header]}" IsExpanded="False" Background="{DynamicResource ControlFillColorDefaultBrush}"
+                  BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="1" Padding="8" Margin="0,0,0,8" FontWeight="Bold" >
+            
+                <StackPanel Margin="0,8,0,0">
+                    <!-- Language settings -->
+                    <Border BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="4" Padding="8" Margin="0,0,0,8">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock x:Name="LanguageLabelText" DockPanel.Dock="Right" Text="Sprache:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                            <ComboBox x:Name="LanguageComboBox" DockPanel.Dock="Right" Width="140" Margin="0,0,16,0" VerticalAlignment="Center"
+                                 SelectionChanged="LanguageComboBox_SelectionChanged">
+                                <ComboBoxItem Content="Deutsch" Tag="de"/>
+                                <ComboBoxItem Content="English" Tag="en"/>
+                            </ComboBox>
 
-                <!-- VR-taugliche Feinjustierung: Position/Ausrichtung des aktiven,
+                        </StackPanel>
+                    </Border>
+                    <!-- VR Reset button binding -->
+                    <Border BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="4" Padding="8" Margin="0,0,0,8">
+                        <StackPanel>
+
+                            <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Global.VrReset.Header]}" FontWeight="Bold" Margin="0,0,0,8"/>
+                            <ItemsControl x:Name="ResetBindingsItemsControl" ItemsSource="{Binding ResetBindingRows}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type local:ResetBindingRow}">
+                                        <DockPanel Margin="0,2,0,2">
+                                            <Button DockPanel.Dock="Right" Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Global.Nudge.Clear]}" Width="80" Margin="4,0,0,0" Click="RemoveResetBindingButton_Click" Tag="{Binding}"/>
+                                            <TextBlock Text="{Binding DisplayText}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                        </DockPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock x:Name="ResetBindingStatusText" VerticalAlignment="Center" Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Global.VrReset.NoButton]}" Margin="0,0,0,8"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <Button x:Name="LearnResetButton" Grid.Column="0" Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Global.VrReset.Learn]}" Click="LearnResetButton_Click" Margin="0,0,8,0" HorizontalAlignment="Left"/>
+                                <Button x:Name="ManualResetButton" Grid.Column="1" Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Global.VrReset.ManualReset]}" Click="ManualResetButton_Click"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- VR-taugliche Feinjustierung: Position/Ausrichtung des aktiven,
                      entsperrten Panels per Controller-Tasten verändern, ohne die
                      Desktop-Oberfläche ansehen zu müssen. -->
-                <Border BorderBrush="Gray" BorderThickness="1" CornerRadius="4" Padding="8" Margin="0,0,0,8">
-                    <StackPanel>
-                        <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Global.Nudge.Header]}" FontWeight="Bold" Margin="0,0,0,8"/>
-                        <Grid Margin="0,0,0,8">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Global.Nudge.ActivePanel]}" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                            <ComboBox x:Name="ActiveNudgePanelComboBox" Grid.Column="1" ItemsSource="{Binding Panels}" DisplayMemberPath="Name" Margin="0,0,8,0"/>
-                            <TextBlock Grid.Column="2" Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Global.Nudge.StepSize]}" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                            <TextBlock x:Name="NudgeStepSizeText" Grid.Column="3" VerticalAlignment="Center" Text="fein"/>
-                        </Grid>
-                        <ItemsControl x:Name="NudgeBindingsItemsControl" ItemsSource="{Binding NudgeActionRows}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate DataType="{x:Type local:NudgeActionRow}">
-                                    <DockPanel Margin="0,2,0,2">
-                                        <TextBlock DockPanel.Dock="Left" Text="{Binding Label}" Width="140" VerticalAlignment="Center"/>
-                                        <Button DockPanel.Dock="Right" Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Global.Nudge.Clear]}" Width="80" Margin="4,0,0,0" Click="ClearNudgeBindingButton_Click" Tag="{Binding Action}"/>
-                                        <Button DockPanel.Dock="Right" Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Global.Nudge.Assign]}" Width="90" Click="LearnNudgeBindingButton_Click" Tag="{Binding Action}"/>
-                                        <TextBlock Text="{Binding StatusText}" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                    </DockPanel>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                        <TextBlock x:Name="NudgeStatusText" Margin="0,8,0,0" TextWrapping="Wrap" Text=""/>
-                    </StackPanel>
-                </Border>
+                    <Border BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="4" Padding="8" Margin="0,0,0,8">
+                        <StackPanel>
+                            <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Global.Nudge.Header]}" FontWeight="Bold" Margin="0,0,0,8"/>
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Global.Nudge.ActivePanel]}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <ComboBox x:Name="ActiveNudgePanelComboBox" Grid.Column="1" ItemsSource="{Binding Panels}" DisplayMemberPath="Name" Margin="0,0,8,0"/>
+                                <TextBlock Grid.Column="2" Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Global.Nudge.StepSize]}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <TextBlock x:Name="NudgeStepSizeText" Grid.Column="3" VerticalAlignment="Center" Text="fein"/>
+                            </Grid>
+                            <ItemsControl x:Name="NudgeBindingsItemsControl" ItemsSource="{Binding NudgeActionRows}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type local:NudgeActionRow}">
+                                        <DockPanel Margin="0,2,0,2">
+                                            <TextBlock DockPanel.Dock="Left" Text="{Binding Label}" Width="140" VerticalAlignment="Center"/>
+                                            <Button DockPanel.Dock="Right" Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Global.Nudge.Clear]}" Width="80" Margin="4,0,0,0" Click="ClearNudgeBindingButton_Click" Tag="{Binding Action}"/>
+                                            <Button DockPanel.Dock="Right" Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Global.Nudge.Assign]}" Width="90" Click="LearnNudgeBindingButton_Click" Tag="{Binding Action}"/>
+                                            <TextBlock Text="{Binding StatusText}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                        </DockPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock x:Name="NudgeStatusText" Margin="0,8,0,0" TextWrapping="Wrap" Text=""/>
+                        </StackPanel>
+                    </Border>
 
-                <!-- OpenXR API layer registration (required so overlays render inside
+                    <!-- OpenXR API layer registration (required so overlays render inside
                      the host application's own OpenXR session, e.g. iRacing, instead
                      of a separate session) -->
-                <Border BorderBrush="Gray" BorderThickness="1" CornerRadius="4" Padding="8">
-                    <StackPanel>
-                        <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Global.Layer.Header]}" FontWeight="Bold" Margin="0,0,0,8"/>
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBlock x:Name="LayerStatusText" Grid.Column="0" VerticalAlignment="Center" Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Global.Layer.CheckingStatus]}" Margin="0,0,8,0" TextWrapping="Wrap"/>
-                            <Button x:Name="RegisterLayerButton" Grid.Column="1" Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Global.Layer.Register]}" Click="RegisterLayerButton_Click" Margin="0,0,8,0"/>
-                            <Button x:Name="UnregisterLayerButton" Grid.Column="2" Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Global.Layer.Unregister]}" Click="UnregisterLayerButton_Click"/>
-                        </Grid>
-                    </StackPanel>
-                </Border>
-            </StackPanel>
+                    <Border BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="4" Padding="8">
+                        <StackPanel>
+                            <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Global.Layer.Header]}" FontWeight="Bold" Margin="0,0,0,8"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock x:Name="LayerStatusText" Grid.Column="0" VerticalAlignment="Center" Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Global.Layer.CheckingStatus]}" Margin="0,0,8,0" TextWrapping="Wrap"/>
+                                <Button x:Name="RegisterLayerButton" Grid.Column="1" Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Global.Layer.Register]}" Click="RegisterLayerButton_Click" Margin="0,0,8,0"/>
+                                <Button x:Name="UnregisterLayerButton" Grid.Column="2" Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Global.Layer.Unregister]}" Click="UnregisterLayerButton_Click"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            
         </Expander>
+        </ScrollViewer>
 
 
-
-        <TextBlock x:Name="StatusText" Grid.Row="7" Margin="0,12,0,0" TextWrapping="Wrap" Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Status.Ready]}"/>
+        
 
         <!-- Live view of the native layer's diagnostic log
              (%TEMP%\DonutzVrHudLayer.log), so we can see directly in the app
              whether iRacing ever loaded/negotiated the native OpenXR API
              layer, without having to open the file manually. Standardmäßig
              eingeklappt, um Platz zu sparen. -->
-        <Expander Grid.Row="8" Header="{Binding Source={x:Static local:Localization.Instance}, Path=[NativeLog.Header]}" IsExpanded="False"
-                  BorderBrush="Gray" BorderThickness="1" Padding="8" Margin="0,8,0,0" FontWeight="Bold">
+        <Expander Grid.Row="3" Header="{Binding Source={x:Static local:Localization.Instance}, Path=[NativeLog.Header]}" IsExpanded="False"
+                  BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="1" Padding="8" Margin="0,0,0,8" FontWeight="Bold" Background="{DynamicResource ControlFillColorDefaultBrush}">
             <DockPanel Margin="0,8,0,0">
                 <DockPanel DockPanel.Dock="Top" Margin="0,0,0,4">
                     <Button DockPanel.Dock="Right" x:Name="RefreshNativeLogButton" Content="{Binding Source={x:Static local:Localization.Instance}, Path=[NativeLog.Refresh]}" Click="RefreshNativeLogButton_Click"/>

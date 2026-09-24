@@ -31,7 +31,11 @@ namespace Donutz_VR_HUD.Settings
 
         public List<PanelSettings> Panels { get; set; } = new();
 
+        /// <summary>Legacy single-binding slot, kept only for reading old profile files. Use <see cref="ResetBindings"/> instead.</summary>
         public ResetBindingSettings? ResetBinding { get; set; }
+
+        /// <summary>All "VR Reset" button bindings (multiple wheel/controller buttons can trigger a recenter).</summary>
+        public List<ResetBindingSettings> ResetBindings { get; set; } = new();
 
         /// <summary>
         /// If true, this profile is used as the catch-all fallback for

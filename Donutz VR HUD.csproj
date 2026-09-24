@@ -23,6 +23,17 @@
     <SelfContained>false</SelfContained>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <CsWinRTIncludes>Windows.Graphics.Capture;Windows.Graphics.DirectX;Windows.Graphics.DirectX.Direct3D11</CsWinRTIncludes>
+    <!--
+      WPF-UI's ui:ThemesDictionary/ui:ControlsDictionary populate their
+      brush/color resources (e.g. ApplicationBackgroundBrush,
+      ControlFillColorDefaultBrush) programmatically at runtime rather than
+      via statically declared x:Key entries, so the new XAML resource-graph
+      validator introduced in the .NET 10 WPF build tools (diagnostic
+      XDG-0001) cannot see them at compile time and reports false-positive
+      "could not be resolved" errors for perfectly valid DynamicResource
+      references. Suppress it.
+    -->
+    <NoWarn>$(NoWarn);XDG-0001</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -34,6 +45,7 @@
     <PackageReference Include="CefSharp.OffScreen.NETCore" Version="136.1.40" />
     <PackageReference Include="SharpDX.DirectInput" Version="4.2.0" />
     <PackageReference Include="Silk.NET.OpenXR.Extensions.KHR" Version="2.22.0" />
+    <PackageReference Include="WPF-UI" Version="4.3.0" />
   </ItemGroup>
 
   <!--

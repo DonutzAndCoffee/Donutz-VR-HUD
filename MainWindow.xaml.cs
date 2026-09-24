@@ -2,9 +2,11 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Donutz_VR_HUD.Capture;
@@ -94,10 +96,20 @@ namespace Donutz_VR_HUD
         public ObservableCollection<Profile> Profiles { get; } = new();
         public ObservableCollection<string> RunningProcessNames { get; } = new();
         public ObservableCollection<NudgeActionRow> NudgeActionRows { get; } = new();
+        public ObservableCollection<ResetBindingRow> ResetBindingRows { get; } = new();
 
         public MainWindow()
         {
             InitializeComponent();
+            //Wpf.Ui.Appearance.ApplicationThemeManager.Apply(this);
+            // ApplicationThemeManager.Apply(...) is supposed to also flip the
+            // window's title bar to dark via DWM, but that didn't actually
+            // happen in testing (likely a WPF-UI/Windows-build quirk), so the
+            // DWM "immersive dark mode" attribute is now set directly via
+            // P/Invoke instead, once the native window handle exists
+            // (SourceInitialized, same timing reasoning as before).
+            SourceInitialized += (_, _) => ApplyImmersiveDarkTitleBar(this);
+
             DataContext = this;
             PanelsItemsControl.ItemsSource = Panels;
             ProfilesComboBox.ItemsSource = Profiles;
@@ -113,7 +125,7 @@ namespace Donutz_VR_HUD
             _resetButtonBinding.ButtonPressed += () => Dispatcher.Invoke(() => _ipcClient?.Recenter());
             _resetButtonBinding.Learned += (device, buttonIndex) => Dispatcher.Invoke(() =>
             {
-                ResetBindingStatusText.Text = $"Gebunden: \"{device.Name}\", Taste {buttonIndex}.";
+                RefreshResetBindingRows();
                 LearnResetButton.IsEnabled = true;
                 LearnResetButton.Content = "Knopf zuweisen…";
                 SaveSettings();
@@ -443,11 +455,16 @@ namespace Donutz_VR_HUD
                     }
                 }
 
-                if (settings.ResetBinding is { ButtonIndex: >= 0 } resetBinding)
+                var resetBindings = settings.ResetBindings.Count > 0
+                    ? settings.ResetBindings
+                    : (settings.ResetBinding is { ButtonIndex: >= 0 } legacyResetBinding ? new List<ResetBindingSettings> { legacyResetBinding } : new List<ResetBindingSettings>());
+
+                _resetButtonBinding.ClearBindings();
+                foreach (var resetBinding in resetBindings.Where(b => b.ButtonIndex >= 0))
                 {
-                    _resetButtonBinding.Bind(resetBinding.DeviceInstanceGuid, resetBinding.ButtonIndex, resetBinding.DeviceName);
-                    ResetBindingStatusText.Text = $"Gebunden: \"{resetBinding.DeviceName}\", Taste {resetBinding.ButtonIndex}.";
+                    _resetButtonBinding.AddBinding(resetBinding.DeviceInstanceGuid, resetBinding.ButtonIndex, resetBinding.DeviceName);
                 }
+                RefreshResetBindingRows();
 
                 foreach (var (actionName, binding) in settings.NudgeBindings)
                 {
@@ -485,15 +502,14 @@ namespace Donutz_VR_HUD
                 Language = Localization.ToSettingsValue(Localization.CurrentLanguage)
             };
 
-            if (_resetButtonBinding.BoundButtonIndex >= 0)
-            {
-                settings.ResetBinding = new ResetBindingSettings
+            settings.ResetBindings = _resetButtonBinding.Bindings
+                .Select(b => new ResetBindingSettings
                 {
-                    DeviceInstanceGuid = _resetButtonBinding.BoundDeviceGuid,
-                    DeviceName = _resetButtonBinding.BoundDeviceName ?? string.Empty,
-                    ButtonIndex = _resetButtonBinding.BoundButtonIndex
-                };
-            }
+                    DeviceInstanceGuid = b.DeviceInstanceGuid,
+                    DeviceName = b.DeviceName ?? string.Empty,
+                    ButtonIndex = b.ButtonIndex
+                })
+                .ToList();
 
             foreach (var (action, binding) in _panelNudgeController.Bindings)
             {
@@ -507,6 +523,28 @@ namespace Donutz_VR_HUD
 
             SettingsStore.Save(settings);
         }
+
+        /// <summary>
+        /// Forces the window's native title bar into dark mode via
+        /// DWMWA_USE_IMMERSIVE_DARK_MODE. Falls back to the pre-20H1 constant
+        /// (19) if the current one is rejected, since older Windows 10
+        /// Insider builds used a different attribute id for the same thing.
+        /// </summary>
+        private static void ApplyImmersiveDarkTitleBar(Window window)
+        {
+            var hwnd = new WindowInteropHelper(window).EnsureHandle();
+            int useImmersiveDarkMode = 1;
+            const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
+            const int DWMWA_USE_IMMERSIVE_DARK_MODE_BEFORE_20H1 = 19;
+
+            if (DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, ref useImmersiveDarkMode, sizeof(int)) != 0)
+            {
+                DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE_BEFORE_20H1, ref useImmersiveDarkMode, sizeof(int));
+            }
+        }
+
+        [DllImport("dwmapi.dll", PreserveSig = true)]
+        private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int pvAttribute, int cbAttribute);
 
         private void RefreshWindowList()
         {
@@ -575,15 +613,14 @@ namespace Donutz_VR_HUD
                 Panels = Panels.Select(PanelSettings.FromPanel).ToList()
             };
 
-            if (_resetButtonBinding.BoundButtonIndex >= 0)
-            {
-                profile.ResetBinding = new ResetBindingSettings
+            profile.ResetBindings = _resetButtonBinding.Bindings
+                .Select(b => new ResetBindingSettings
                 {
-                    DeviceInstanceGuid = _resetButtonBinding.BoundDeviceGuid,
-                    DeviceName = _resetButtonBinding.BoundDeviceName ?? string.Empty,
-                    ButtonIndex = _resetButtonBinding.BoundButtonIndex
-                };
-            }
+                    DeviceInstanceGuid = b.DeviceInstanceGuid,
+                    DeviceName = b.DeviceName ?? string.Empty,
+                    ButtonIndex = b.ButtonIndex
+                })
+                .ToList();
 
             return profile;
         }
@@ -879,11 +916,16 @@ namespace Donutz_VR_HUD
                     Panels.Add(panel);
                 }
 
-                if (profile.ResetBinding is { ButtonIndex: >= 0 } resetBinding)
+                var profileResetBindings = profile.ResetBindings.Count > 0
+                    ? profile.ResetBindings
+                    : (profile.ResetBinding is { ButtonIndex: >= 0 } legacyResetBinding ? new List<ResetBindingSettings> { legacyResetBinding } : new List<ResetBindingSettings>());
+
+                _resetButtonBinding.ClearBindings();
+                foreach (var resetBinding in profileResetBindings.Where(b => b.ButtonIndex >= 0))
                 {
-                    _resetButtonBinding.Bind(resetBinding.DeviceInstanceGuid, resetBinding.ButtonIndex, resetBinding.DeviceName);
-                    ResetBindingStatusText.Text = $"Gebunden: \"{resetBinding.DeviceName}\", Taste {resetBinding.ButtonIndex}.";
+                    _resetButtonBinding.AddBinding(resetBinding.DeviceInstanceGuid, resetBinding.ButtonIndex, resetBinding.DeviceName);
                 }
+                RefreshResetBindingRows();
 
                 ProfileGameComboBox.Text = profile.GameProcessName ?? string.Empty;
                 // The next auto-profile tick will immediately re-sync this
@@ -972,6 +1014,7 @@ namespace Donutz_VR_HUD
             // the simulation has just been closed, so the current profile
             // for the active car can be auto-saved.
             var isSimRunning = liveState?.GameRunning == true;
+            string? detectedProcessName = null;
             if (!isSimRunning)
             {
                 var knownProcessNames = Profiles
@@ -979,7 +1022,20 @@ namespace Donutz_VR_HUD
                     .Select(p => p.GameProcessName!)
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToList();
-                isSimRunning = knownProcessNames.Count > 0 && ActiveGameDetector.GetRunningProcessName(knownProcessNames) is not null;
+                detectedProcessName = knownProcessNames.Count > 0 ? ActiveGameDetector.GetRunningProcessName(knownProcessNames) : null;
+                isSimRunning = detectedProcessName is not null;
+            }
+
+            // Detect a new game session starting (wasn't running on the
+            // previous tick, is now) and log it alongside the native layer's
+            // log so the exact detection time can be correlated with when
+            // the native OpenXR layer negotiates/creates its instance and
+            // IPC pipe - useful for diagnosing connection-timing issues like
+            // the one seen with Assetto Corsa/LMU.
+            if (!_wasSimRunning && isSimRunning)
+            {
+                var detectedGameName = liveState?.GameName ?? detectedProcessName ?? "unknown";
+                OverlayIpcClient.AppendAppLogEntry($"New game session detected: {detectedGameName}");
             }
 
             if (_ipcClient is null && Panels.Count > 0 && isSimRunning)
@@ -1180,6 +1236,7 @@ namespace Donutz_VR_HUD
         private void EditModeToggle_Changed(object sender, RoutedEventArgs e)
         {
             _isEditModeActive = EditModeToggleCheckBox.IsChecked == true;
+            _ipcClient?.SetEditModeActive(_isEditModeActive);
 
             if (_isEditModeActive)
             {
@@ -1819,6 +1876,30 @@ namespace Donutz_VR_HUD
             _resetButtonBinding.StartLearning();
         }
 
+        private void RemoveResetBindingButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button { Tag: ResetBindingRow row })
+            {
+                _resetButtonBinding.RemoveBinding(row.Index);
+                RefreshResetBindingRows();
+                SaveSettings();
+            }
+        }
+
+        /// <summary>Rebuilds <see cref="ResetBindingRows"/> from the current <see cref="ResetButtonBinding"/> state.</summary>
+        private void RefreshResetBindingRows()
+        {
+            ResetBindingRows.Clear();
+            var bindings = _resetButtonBinding.Bindings;
+            for (var i = 0; i < bindings.Count; i++)
+            {
+                ResetBindingRows.Add(new ResetBindingRow(i, bindings[i].DeviceName, bindings[i].ButtonIndex));
+            }
+
+            ResetBindingStatusText.Text = bindings.Count == 0 ? "Kein Knopf zugewiesen." : string.Empty;
+            ResetBindingStatusText.Visibility = bindings.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        }
+
         private void ManualResetButton_Click(object sender, RoutedEventArgs e)
         {
             _ipcClient?.Recenter();
@@ -2093,6 +2174,7 @@ namespace Donutz_VR_HUD
                 ipcClient.PanelTransformUpdated += OnControllerPanelTransformUpdated;
                 ipcClient.ControllerNudgeActionReceived += OnControllerNudgeActionReceived;
                 ipcClient.ControllerGrabStarted += OnControllerGrabStarted;
+                ipcClient.SetEditModeActive(_isEditModeActive);
 
                 for (var i = 0; i < Panels.Count; i++)
                 {

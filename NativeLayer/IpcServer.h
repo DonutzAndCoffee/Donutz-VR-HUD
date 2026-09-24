@@ -29,6 +29,11 @@ namespace IpcServer
 		RemovePanel = 3,
 		Recenter = 4,
 
+		// Client -> server: tells the native layer whether the app's edit
+		// mode is currently active. VR controller input is only processed
+		// by ControllerInput.cpp while this is true (see IsEditModeActive).
+		SetEditModeActive = 5,
+
 		// Server -> client.
 		PanelTransformUpdated = 100,
 		ControllerNudgeAction = 101,
@@ -77,6 +82,11 @@ namespace IpcServer
 	struct RemovePanelPayload
 	{
 		PanelIdBytes panelId;
+	};
+
+	struct SetEditModeActivePayload
+	{
+		uint8_t active;
 	};
 
 	// Server -> client: final transform after a VR controller grab ends
@@ -150,6 +160,12 @@ namespace IpcServer
 	// Returns true and clears the flag if a Recenter message was received
 	// since the last call (thread-safe, consumed once).
 	bool ConsumeRecenterRequested();
+
+	// Returns whether the managed app's edit mode is currently active (set
+	// via SetEditModeActive messages). ControllerInput.cpp gates all VR
+	// controller grab/nudge processing on this so the controllers stay
+	// inert unless the user has explicitly enabled Edit Mode in the GUI.
+	bool IsEditModeActive();
 
 	// Called every frame from ControllerInput.cpp while a panel is being
 	// held by a VR controller grab, to update its transform in-place so

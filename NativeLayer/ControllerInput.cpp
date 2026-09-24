@@ -10,7 +10,6 @@ namespace ControllerInput
 {
 	namespace
 	{
-		constexpr float kGrabDistanceMeters = 0.45f;
 		constexpr float kThumbstickDeadzone = 0.5f;
 		// Panels are re-armed for a new nudge pulse only once the stick
 		// returns below this (lower than the trigger deadzone) magnitude,
@@ -193,11 +192,13 @@ namespace ControllerInput
 			return beam;
 		}
 
-		// Maximum range for the laser/aim-based hit test below. Larger than
-		// the old proximity-only kGrabDistanceMeters since a real laser
-		// pointer should be able to reach panels placed further away, as
-		// long as it's actually pointed at them.
-		constexpr float kMaxAimDistanceMeters = 3.0f;
+		// Maximum range for the laser/aim-based hit test below. Kept in
+		// sync with the visually rendered laser length (kLaserLengthMeters)
+		// so a panel can only be highlighted/grabbed while the visible
+		// laser beam can actually reach it - a longer range here than what
+		// is drawn made panels light up well before the beam visually
+		// touched them.
+		constexpr float kMaxAimDistanceMeters = 1.5f;
 
 		// True laser/ray hit-test against a panel's rectangular surface.
 		// XrCompositionLayerQuad convention: the quad lies in the local
@@ -211,9 +212,17 @@ namespace ControllerInput
 		{
 			const XrVector3f normal = QuatRotateVector(panelWorld.orientation, XrVector3f{ 0.0f, 0.0f, 1.0f });
 			const float denom = normal.x * rayDir.x + normal.y * rayDir.y + normal.z * rayDir.z;
-			if (fabsf(denom) < 1e-5f)
+			// Require the ray to approach the panel's front face (denom
+			// clearly negative, i.e. ray direction opposes the panel
+			// normal) rather than merely "not parallel" - otherwise a ray
+			// passing through the panel's back (e.g. the user pointing
+			// past/behind it from the wrong side) would still count as a
+			// hit, which read as the highlight "catching" the panel too
+			// easily/early.
+			constexpr float kMinFacingDot = -0.05f;
+			if (denom > kMinFacingDot)
 			{
-				return false; // Ray (near) parallel to the panel's plane.
+				return false; // Parallel to, or approaching from behind, the panel's front face.
 			}
 
 			const XrVector3f toPlane = VectorSub(panelWorld.position, rayOrigin);
@@ -404,10 +413,11 @@ namespace ControllerInput
 							continue;
 						}
 						XrPosef panelWorld = PanelWorldPose(panel);
-						const float distance = VectorLength(VectorSub(panelWorld.position, aimLocation.pose.position));
-						if (distance < bestDistance)
+						float hitDistance = 0.0f;
+						if (RayHitsPanel(aimLocation.pose.position, aimForward, panelWorld, panel.widthMeters, panel.heightMeters, &hitDistance)
+							&& hitDistance < bestDistance)
 						{
-							bestDistance = distance;
+							bestDistance = hitDistance;
 							bestPanel = panel;
 							found = true;
 						}
@@ -521,13 +531,19 @@ namespace ControllerInput
 				}
 				else
 				{
-					// Not grabbing: check whether a panel is within grab
-					// range to show the hover color, same aim-pose based
-					// distance check as the trigger-press logic above. Also
-					// show the highlight frame here already, as soon as the
-					// laser "catches" a panel, so it's clear which panel
-					// would be grabbed before the trigger is even pressed.
+					// Not grabbing: use the same laser/ray hit-test as the
+					// trigger-press logic above, so the highlight only
+					// appears on the panel the laser is actually pointed
+					// at (picking the closest hit if the ray passes
+					// through multiple panels), not merely whichever
+					// panel happens to be near the controller.
 					const auto panels = IpcServer::GetPanelsSnapshot();
+					float bestHitDistance = kMaxAimDistanceMeters;
+					bool foundHover = false;
+					XrPosef bestPanelWorld{};
+					float bestWidthMeters = 0.0f;
+					float bestHeightMeters = 0.0f;
+
 					for (const auto& panel : panels)
 					{
 						if (!panel.enabled || panel.headLocked)
@@ -535,18 +551,28 @@ namespace ControllerInput
 							continue;
 						}
 						XrPosef panelWorld = PanelWorldPose(panel);
-						const float distance = VectorLength(VectorSub(panelWorld.position, aimLocation.pose.position));
-						if (distance < kGrabDistanceMeters)
+						float hitDistance = 0.0f;
+						if (RayHitsPanel(aimLocation.pose.position, aimForward, panelWorld, panel.widthMeters, panel.heightMeters, &hitDistance)
+							&& hitDistance < bestHitDistance)
 						{
-							color = kColorHover;
-
-							constexpr float kHighlightMargin = 1.08f;
-							visual.grabHighlightVisible = true;
-							visual.grabHighlightPose = panelWorld;
-							visual.grabHighlightWidthMeters = panel.widthMeters * kHighlightMargin;
-							visual.grabHighlightHeightMeters = panel.heightMeters * kHighlightMargin;
-							break;
+							bestHitDistance = hitDistance;
+							bestPanelWorld = panelWorld;
+							bestWidthMeters = panel.widthMeters;
+							bestHeightMeters = panel.heightMeters;
+							foundHover = true;
 						}
+					}
+
+					if (foundHover)
+					{
+						color = kColorHover;
+						beamLength = bestHitDistance;
+
+						constexpr float kHighlightMargin = 1.08f;
+						visual.grabHighlightVisible = true;
+						visual.grabHighlightPose = bestPanelWorld;
+						visual.grabHighlightWidthMeters = bestWidthMeters * kHighlightMargin;
+						visual.grabHighlightHeightMeters = bestHeightMeters * kHighlightMargin;
 					}
 				}
 
@@ -739,6 +765,20 @@ namespace ControllerInput
 
 		if (!attached || syncActions == nullptr)
 		{
+			std::lock_guard<std::mutex> lock(g_mutex);
+			g_visuals[0] = ControllerVisual{};
+			g_visuals[1] = ControllerVisual{};
+			return;
+		}
+
+		// VR controllers must stay inert (no grabbing/nudging panels)
+		// unless the user has explicitly enabled Edit Mode in the GUI;
+		// see IpcServer::IsEditModeActive / MainWindow.xaml.cs
+		// EditModeToggle_Changed.
+		if (!IpcServer::IsEditModeActive())
+		{
+			g_grabState[0] = GrabState{};
+			g_grabState[1] = GrabState{};
 			std::lock_guard<std::mutex> lock(g_mutex);
 			g_visuals[0] = ControllerVisual{};
 			g_visuals[1] = ControllerVisual{};

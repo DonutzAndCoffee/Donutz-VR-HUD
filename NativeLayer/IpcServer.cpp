@@ -49,6 +49,7 @@ namespace
 	std::mutex g_stateMutex;
 	std::unordered_map<GuidKey, IpcServer::PanelState, GuidKeyHash> g_panels;
 	std::atomic<bool> g_recenterRequested{ false };
+	std::atomic<bool> g_editModeActive{ false };
 
 	// Outgoing (server -> client) message queue, drained by ServerLoop's
 	// per-connection loop right after each read attempt. A dedicated write
@@ -190,6 +191,14 @@ namespace
 		case IpcServer::MessageType::Recenter:
 			g_recenterRequested = true;
 			break;
+		case IpcServer::MessageType::SetEditModeActive:
+			if (payload.size() >= sizeof(IpcServer::SetEditModeActivePayload))
+			{
+				IpcServer::SetEditModeActivePayload msg;
+				std::memcpy(&msg, payload.data(), sizeof(msg));
+				g_editModeActive = msg.active != 0;
+			}
+			break;
 		default:
 			break;
 		}
@@ -325,6 +334,11 @@ namespace IpcServer
 	bool ConsumeRecenterRequested()
 	{
 		return g_recenterRequested.exchange(false);
+	}
+
+	bool IsEditModeActive()
+	{
+		return g_editModeActive.load();
 	}
 
 	void ApplyControllerTransform(
