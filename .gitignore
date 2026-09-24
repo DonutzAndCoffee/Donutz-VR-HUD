@@ -360,4 +360,13 @@ MigrationBackup/
 .ionide/
 
 # Fody - auto-generated XML schema
+
+# Project-specific scratch/helper files (notes, one-off fix/inspect scripts, not part of the app)
+/_apply_xaml*.ps1
+/_fix_mojibake*.ps1
+/_fix_xaml*.ps1
+/_inspect*.ps1
+/_tmp_*.ps1
+NativeLayer/_tmp_*.py
+*.csproj.Backup.tmp
 FodyWeavers.xsd
