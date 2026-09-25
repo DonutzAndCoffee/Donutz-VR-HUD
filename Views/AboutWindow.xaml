@@ -1,0 +1,55 @@
+<Window x:Class="Donutz_VR_HUD.Views.AboutWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:Donutz_VR_HUD"
+        Title="{Binding Source={x:Static local:Localization.Instance}, Path=[About.Title]}"
+        Height="480" Width="520"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        Background="{DynamicResource ApplicationBackgroundBrush}"
+        Foreground="{DynamicResource TextFillColorPrimaryBrush}">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Text="Donutz VR HUD" FontWeight="Bold" FontSize="18" Margin="0,0,0,4"/>
+        <TextBlock x:Name="VersionText" Grid.Row="1" Margin="0,0,0,12" Text="Version"/>
+
+        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[About.Copyright]}" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[About.LicenseHeader]}" FontWeight="Bold" Margin="0,0,0,4"/>
+                <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[About.LicenseBody]}" TextWrapping="Wrap" Margin="0,0,0,4"/>
+                <TextBlock Margin="0,0,0,12">
+                    <Hyperlink NavigateUri="https://creativecommons.org/licenses/by-nc/4.0/" RequestNavigate="Hyperlink_RequestNavigate">
+                        https://creativecommons.org/licenses/by-nc/4.0/
+                    </Hyperlink>
+                </TextBlock>
+
+                <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[About.ThirdPartyHeader]}" FontWeight="Bold" Margin="0,0,0,4"/>
+                <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[About.ThirdPartyBody]}" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                <TextBlock TextWrapping="Wrap" Margin="0,0,0,4" FontFamily="Consolas" FontSize="11">
+                    CefSharp / Chromium Embedded Framework — BSD-3-Clause&#x0a;
+                    Silk.NET (OpenXR, Direct3D11, DXGI, Core, OpenXR.Extensions.KHR) — MIT&#x0a;
+                    OpenXR.Loader / OpenXR-SDK — Apache-2.0&#x0a;
+                    SharpDX.DirectInput — MIT&#x0a;
+                    WPF-UI — MIT&#x0a;
+                    jsoncpp, jnipp, android-jni-wrappers, sanitizers-cmake (vendored in OpenXR-SDK/) — MIT / Apache-2.0
+                </TextBlock>
+                <TextBlock Margin="0,4,0,0">
+                    <Hyperlink NavigateUri="https://github.com/DonutzAndCoffee/Donutz-VR-HUD" RequestNavigate="Hyperlink_RequestNavigate">
+                        https://github.com/DonutzAndCoffee/Donutz-VR-HUD
+                    </Hyperlink>
+                </TextBlock>
+            </StackPanel>
+        </ScrollViewer>
+
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button x:Name="CloseButton" Content="{Binding Source={x:Static local:Localization.Instance}, Path=[About.Close]}" Width="80" Click="CloseButton_Click" IsDefault="True" IsCancel="True"/>
+        </StackPanel>
+    </Grid>
+</Window>

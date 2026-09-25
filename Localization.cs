@@ -69,6 +69,22 @@ namespace Donutz_VR_HUD
         {
             ["Language.Label"] = ("Sprache:", "Language:"),
 
+            // About dialog
+            ["About.Title"] = ("Über Donutz VR HUD", "About Donutz VR HUD"),
+            ["About.Close"] = ("Schließen", "Close"),
+            ["About.Copyright"] = (
+                "Copyright (c) 2025 DonutzAndCoffee",
+                "Copyright (c) 2025 DonutzAndCoffee"),
+            ["About.LicenseHeader"] = ("Lizenz", "License"),
+            ["About.LicenseBody"] = (
+                "Dieses Programm steht unter der Creative-Commons-Lizenz „Namensnennung – Nicht kommerziell 4.0 International“ (CC BY-NC 4.0). Nutzung, Veränderung und Weitergabe sind unter Namensnennung des Urhebers erlaubt; eine kommerzielle Nutzung ist nicht gestattet.",
+                "This program is licensed under Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0). Use, modification and redistribution are permitted with attribution to the original author; commercial use is not permitted."),
+            ["About.ThirdPartyHeader"] = ("Drittanbieter-Komponenten", "Third-party components"),
+            ["About.ThirdPartyBody"] = (
+                "Dieses Programm nutzt die folgenden Open-Source-Komponenten unter ihren jeweiligen Lizenzen:",
+                "This program uses the following open-source components under their respective licenses:"),
+            ["About.Button"] = ("Über", "About"),
+
             // Edit mode (desktop HUD + VR overlay adjustment HUD)
             ["EditMode.Title"] = ("Editiermodus", "Edit Mode"),
             ["EditMode.PanelLabel"] = ("Panel: ", "Panel: "),

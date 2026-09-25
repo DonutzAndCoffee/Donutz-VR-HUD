@@ -2113,6 +2113,11 @@ namespace Donutz_VR_HUD
             }
         }
 
+        private void AboutButton_Click(object sender, RoutedEventArgs e)
+        {
+            new Views.AboutWindow { Owner = this }.ShowDialog();
+        }
+
         private async void OverlayStatusButton_Click(object sender, RoutedEventArgs e)
         {
             if (_ipcClient is not null)

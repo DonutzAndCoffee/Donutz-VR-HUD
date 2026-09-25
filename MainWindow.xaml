@@ -90,7 +90,7 @@
 
 
         <!--<Border Grid.Row="3" Grid.RowSpan="3" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="2" CornerRadius="4" Margin="0,0,0,8" Background="{DynamicResource ControlFillColorDefaultBrush}" Padding="8">-->
-        <Border Grid.Row="4" Grid.RowSpan="3" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="2" CornerRadius="4" Margin="0,0,0,8" Background="#2D3D30" Padding="8">
+        <Border Grid.Row="4" Grid.RowSpan="3" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="2" CornerRadius="4" Margin="0,0,0,8" Background="#3a3a32" Padding="8">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
@@ -108,6 +108,7 @@
                 <ComboBoxItem Content="English" Tag="en"/>
             </ComboBox>
             <TextBlock x:Name="LanguageLabelText" DockPanel.Dock="Right" Text="Sprache:" VerticalAlignment="Center" Margin="0,0,4,0"/>-->
+            <Button x:Name="AboutButton" DockPanel.Dock="Right" Content="{Binding Source={x:Static local:Localization.Instance}, Path=[About.Button]}" Margin="0,0,16,0" Click="AboutButton_Click"/>
             <Button x:Name="OverlayStatusButton" DockPanel.Dock="Right" Width="220" Height="28" Margin="0,0,16,0" Click="OverlayStatusButton_Click"
                     HorizontalContentAlignment="Left">
                 <Button.Content>
