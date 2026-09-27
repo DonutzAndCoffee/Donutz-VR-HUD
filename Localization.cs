@@ -82,6 +82,11 @@ namespace Donutz_VR_HUD
             ["Panels.Add"] = "+ Add panel",
             ["Panels.Header"] = "Overlay panels (max. 5):",
             ["Overlay.Status.Stopped"] = "Overlay stopped (click to start)",
+            ["Overlay.Status.Active"] = "Overlay active (click to stop)",
+            ["Overlay.Status.Waiting"] = "Overlay waiting for connection…",
+            ["Overlay.Status.Error"] = "Overlay problem (click to restart)",
+            ["Overlay.Status.Connected"] = "Overlay connected with {0} panel(s).",
+            ["Overlay.Status.StoppedMessage"] = "Overlay stopped.",
 
             // Panel item template
             ["Panel.Remove"] = "Remove",

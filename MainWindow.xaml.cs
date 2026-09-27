@@ -2110,7 +2110,7 @@ namespace Donutz_VR_HUD
             if (_ipcClient is not null)
             {
                 StopOverlay();
-                StatusText.Text = "Overlay gestoppt.";
+                StatusText.Text = Localization.Instance["Overlay.Status.StoppedMessage"];
             }
             else
             {
@@ -2179,7 +2179,7 @@ namespace Donutz_VR_HUD
                     StartEditModeVrHud();
                 }
 
-                StatusText.Text = $"Overlay verbunden mit {Panels.Count} Panel(s).";
+                StatusText.Text = string.Format(Localization.Instance["Overlay.Status.Connected"], Panels.Count);
                 SetOverlayStatus(OverlayStatus.Active);
                 return true;
             }
@@ -2228,10 +2228,10 @@ namespace Donutz_VR_HUD
 
             (Brush fill, string text) = status switch
             {
-                OverlayStatus.Active => (Brushes.LimeGreen, "Overlay aktiv (klicken zum Stoppen)"),
-                OverlayStatus.Waiting => (Brushes.Gold, "Overlay wartet auf Verbindung…"),
-                OverlayStatus.Error => (Brushes.Red, "Overlay-Problem (klicken zum erneuten Starten)"),
-                _ => (Brushes.Gray, "Overlay gestoppt (klicken zum Starten)"),
+                OverlayStatus.Active => (Brushes.LimeGreen, Localization.Instance["Overlay.Status.Active"]),
+                OverlayStatus.Waiting => (Brushes.Gold, Localization.Instance["Overlay.Status.Waiting"]),
+                OverlayStatus.Error => (Brushes.Red, Localization.Instance["Overlay.Status.Error"]),
+                _ => (Brushes.Gray, Localization.Instance["Overlay.Status.Stopped"]),
             };
 
             OverlayStatusIndicator.Fill = fill;
