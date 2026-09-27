@@ -78,6 +78,9 @@ namespace Donutz_VR_HUD
             ["Profile.AutoSaveOnExit"] = "Automatically save the profile for the current car when the sim exits",
             ["Profile.IsDefault"] = "Use as default profile (fallback if nothing matches)",
 
+            // General app behavior
+            ["App.CloseToTray"] = "Close to tray instead of exiting",
+
             // Panel list header
             ["Panels.Add"] = "+ Add panel",
             ["Panels.Header"] = "Overlay panels (max. 5):",
@@ -132,6 +135,7 @@ namespace Donutz_VR_HUD
             ["Global.Layer.CheckingStatus"] = "Checking status\u2026",
             ["Global.Layer.Register"] = "Register layer",
             ["Global.Layer.Unregister"] = "Remove layer",
+            ["Global.General.Header"] = "General",
 
             // Status/footer
             ["Status.Ready"] = "Ready.",

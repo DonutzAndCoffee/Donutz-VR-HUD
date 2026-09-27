@@ -127,6 +127,13 @@ namespace Donutz_VR_HUD.Settings
         public bool AutoSaveProfileOnSimExit { get; set; }
 
         /// <summary>
+        /// If true, closing the main window (X button) minimizes the app to
+        /// the system tray instead of exiting the process. The app can then
+        /// be restored via the tray icon or fully exited via its context menu.
+        /// </summary>
+        public bool CloseToTray { get; set; }
+
+        /// <summary>
         /// Legacy UI language setting ("de" or "en") kept only for backward
         /// compatibility with older settings files. The app is English-only
         /// now, so this value is no longer read or written.

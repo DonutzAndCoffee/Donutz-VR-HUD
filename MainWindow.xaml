@@ -430,6 +430,14 @@
                             </Grid>
                         </StackPanel>
                     </Border>
+
+                    <!-- General app behavior settings. -->
+                    <Border BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="4" Padding="8">
+                        <StackPanel>
+                            <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Global.General.Header]}" FontWeight="Bold" Margin="0,0,0,8"/>
+                            <CheckBox x:Name="CloseToTrayCheckBox" Content="{Binding Source={x:Static local:Localization.Instance}, Path=[App.CloseToTray]}" Checked="CloseToTrayCheckBox_Changed" Unchecked="CloseToTrayCheckBox_Changed" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
                 </ScrollViewer>
             </Border>

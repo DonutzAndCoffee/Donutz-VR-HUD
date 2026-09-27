@@ -47,6 +47,9 @@ namespace Donutz_VR_HUD
         private bool _autoLoadProfiles;
         private bool _autoSaveProfileOnSimExit;
         private bool _wasSimRunning;
+        private bool _closeToTray;
+        private bool _isExiting;
+        private System.Windows.Forms.NotifyIcon? _trayIcon;
         private OverlayStatus _overlayStatus = OverlayStatus.Stopped;
 
         /// <summary>
@@ -476,7 +479,8 @@ namespace Donutz_VR_HUD
             {
                 Panels = Panels.Select(PanelSettings.FromPanel).ToList(),
                 AutoLoadProfiles = _autoLoadProfiles,
-                AutoSaveProfileOnSimExit = _autoSaveProfileOnSimExit
+                AutoSaveProfileOnSimExit = _autoSaveProfileOnSimExit,
+                CloseToTray = _closeToTray
             };
 
             settings.ResetBindings = _resetButtonBinding.Bindings
@@ -571,6 +575,8 @@ namespace Donutz_VR_HUD
             AutoLoadProfilesCheckBox.IsChecked = _autoLoadProfiles;
             _autoSaveProfileOnSimExit = settings.AutoSaveProfileOnSimExit;
             AutoSaveProfileOnSimExitCheckBox.IsChecked = _autoSaveProfileOnSimExit;
+            _closeToTray = settings.CloseToTray;
+            CloseToTrayCheckBox.IsChecked = _closeToTray;
         }
 
         /// <summary>
@@ -785,6 +791,12 @@ namespace Donutz_VR_HUD
         private void AutoSaveProfileOnSimExitCheckBox_Changed(object sender, RoutedEventArgs e)
         {
             _autoSaveProfileOnSimExit = AutoSaveProfileOnSimExitCheckBox.IsChecked == true;
+            SaveSettings();
+        }
+
+        private void CloseToTrayCheckBox_Changed(object sender, RoutedEventArgs e)
+        {
+            _closeToTray = CloseToTrayCheckBox.IsChecked == true;
             SaveSettings();
         }
 
@@ -2239,6 +2251,25 @@ namespace Donutz_VR_HUD
             OverlayStatusButton.IsEnabled = status != OverlayStatus.Waiting;
         }
 
+        /// <summary>
+        /// Intercepts the window close request (e.g. the X button) and, if
+        /// "close to tray" is enabled, hides the window and keeps the app
+        /// running in the background (with a tray icon to restore/exit it)
+        /// instead of actually shutting down.
+        /// </summary>
+        protected override void OnClosing(CancelEventArgs e)
+        {
+            if (_closeToTray && !_isExiting)
+            {
+                e.Cancel = true;
+                Hide();
+                ShowTrayIcon();
+                return;
+            }
+
+            base.OnClosing(e);
+        }
+
         protected override void OnClosed(EventArgs e)
         {
             _nativeLogTimer.Stop();
@@ -2246,7 +2277,62 @@ namespace Donutz_VR_HUD
             StopOverlay();
             _resetButtonBinding.Dispose();
             _panelNudgeController.Dispose();
+            _trayIcon?.Dispose();
+            _trayIcon = null;
             base.OnClosed(e);
+        }
+
+        /// <summary>
+        /// Lazily creates (if needed) and shows the tray icon used while the
+        /// window is hidden due to "close to tray". Double-clicking it or
+        /// using its context menu's "Open" restores the window; "Exit"
+        /// performs a real shutdown of the application.
+        /// </summary>
+        private void ShowTrayIcon()
+        {
+            if (_trayIcon is null)
+            {
+                var contextMenu = new System.Windows.Forms.ContextMenuStrip();
+                contextMenu.Items.Add("Open", null, (_, _) => RestoreFromTray());
+                contextMenu.Items.Add("Exit", null, (_, _) => ExitFromTray());
+
+                var exePath = Assembly.GetExecutingAssembly().Location;
+                var icon = string.IsNullOrEmpty(exePath) ? null : System.Drawing.Icon.ExtractAssociatedIcon(exePath);
+
+                _trayIcon = new System.Windows.Forms.NotifyIcon
+                {
+                    Icon = icon ?? System.Drawing.SystemIcons.Application,
+                    Text = "Donutz VR HUD",
+                    ContextMenuStrip = contextMenu,
+                    Visible = false
+                };
+                _trayIcon.DoubleClick += (_, _) => RestoreFromTray();
+            }
+
+            _trayIcon.Visible = true;
+        }
+
+        private void RestoreFromTray()
+        {
+            if (_trayIcon is not null)
+            {
+                _trayIcon.Visible = false;
+            }
+
+            Show();
+            WindowState = WindowState.Normal;
+            Activate();
+        }
+
+        private void ExitFromTray()
+        {
+            _isExiting = true;
+            if (_trayIcon is not null)
+            {
+                _trayIcon.Visible = false;
+            }
+
+            Close();
         }
 
         // Returns the last-write timestamp of the running executable, which
