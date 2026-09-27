@@ -21,12 +21,18 @@ The two components communicate via a local **named pipe IPC channel** (panel tra
   - Panel highlight overlays
   - Test pattern (for calibration)
 - Per-panel **head-locked** or **cockpit-fixed** placement, with optional opaque or alpha-blended background.
-- **VR controller interaction**: grab-and-move panels with the grip button and fine-nudge them with the thumbstick, using standard OpenXR actions — no SteamVR-specific SDK required, so it works with any OpenXR runtime.
+- **VR controller interaction** (experimental): grab-and-move panels with the grip button and fine-nudge them with the thumbstick, using standard OpenXR actions — no SteamVR-specific SDK required, so it works with any OpenXR runtime.
 - **Profiles** for saving/restoring different panel layouts per game or session.
 - **SimHub** integration for telemetry data.
 - Automatic detection of the active game/process.
 - English UI.
 - Dark mode support (WPF-UI).
+
+<img width="946" height="953" alt="image" src="https://github.com/user-attachments/assets/a9ae346d-7974-41b3-be7d-5a1b32d3ea4b" />
+
+<img width="2560" height="1440" alt="Screenshot 2026-09-27 06-24-59" src="https://github.com/user-attachments/assets/6bccecb7-72d9-4066-8698-42a4f3346338" />
+
+
 
 ## Repository layout
 
