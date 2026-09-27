@@ -9,7 +9,8 @@
         mc:Ignorable="d"
         Background="{DynamicResource ApplicationBackgroundBrush}"
         Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-        Title="Donutz VR HUD" Height="940" Width="960" MinHeight="960" MinWidth="900">
+        Title="Donutz VR HUD" Height="940" Width="960" MinHeight="960" MinWidth="900"
+        Icon="pack://application:,,,/Assets/AppIcon.ico">
     <Window.Resources>
         <local:SourceTypeCheckedConverter x:Key="SourceTypeConverter"/>
         <local:SourceTypeVisibilityConverter x:Key="SourceTypeVisibilityConverter"/>
@@ -23,7 +24,7 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -97,7 +98,7 @@
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="500"/>
+                    <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
                 <!-- Panel list header + add button -->
         <DockPanel Grid.Row="0" Margin="0,0,0,8">

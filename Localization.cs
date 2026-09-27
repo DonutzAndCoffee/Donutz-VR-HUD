@@ -30,6 +30,7 @@ namespace Donutz_VR_HUD
             ["About.ThirdPartyBody"] =
                 "This program uses the following open-source components under their respective licenses:",
             ["About.Button"] = "About",
+            ["About.Motto"] = "Donutz: Proof that sim racing can be delicious.",
 
             // Edit mode (desktop HUD + VR overlay adjustment HUD)
             ["EditMode.Title"] = "Edit Mode",

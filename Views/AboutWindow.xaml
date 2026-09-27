@@ -3,23 +3,46 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:Donutz_VR_HUD"
         Title="{Binding Source={x:Static local:Localization.Instance}, Path=[About.Title]}"
-        Height="480" Width="520"
+        Height="540" Width="520"
         WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
         ShowInTaskbar="False"
         Background="{DynamicResource ApplicationBackgroundBrush}"
-        Foreground="{DynamicResource TextFillColorPrimaryBrush}">
+        Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+        Icon="pack://application:,,,/Assets/AppIcon.ico">
     <Grid Margin="16">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <TextBlock Grid.Row="0" Text="Donutz VR HUD" FontWeight="Bold" FontSize="18" Margin="0,0,0,4"/>
+        <DockPanel Grid.Row="0" Margin="0,0,0,4">
+            <Image Source="pack://application:,,,/Assets/AppIcon.png" Width="40" Height="40" Margin="0,0,12,0" DockPanel.Dock="Left"/>
+            <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="Donutz VR HUD" FontWeight="Bold" FontSize="18"/>
+                <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[About.Motto]}" FontStyle="Italic" FontSize="12"/>
+            </StackPanel>
+        </DockPanel>
         <TextBlock x:Name="VersionText" Grid.Row="1" Margin="0,0,0,12" Text="Version"/>
+		
+		<DockPanel Grid.Row="2" Margin="0,0,0,14">
+			<StackPanel>
+				<TextBlock Margin="0,4,0,0">
+					<Hyperlink NavigateUri="https://github.com/DonutzAndCoffee/Donutz-VR-HUD" RequestNavigate="Hyperlink_RequestNavigate">
+						https://github.com/DonutzAndCoffee/Donutz-VR-HUD
+					</Hyperlink>
+				</TextBlock>
+				<TextBlock Margin="0,4,0,0">
+					<Hyperlink NavigateUri="https://discord.gg/KuSsEYgB3k" RequestNavigate="Hyperlink_RequestNavigate">
+						https://discord.gg/KuSsEYgB3k
+					</Hyperlink>
+				</TextBlock>
+			</StackPanel>
+		</DockPanel>
 
-        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+        <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto">
             <StackPanel>
                 <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[About.Copyright]}" TextWrapping="Wrap" Margin="0,0,0,8"/>
                 <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[About.LicenseHeader]}" FontWeight="Bold" Margin="0,0,0,4"/>
@@ -40,15 +63,11 @@
                     WPF-UI — MIT&#x0a;
                     jsoncpp, jnipp, android-jni-wrappers, sanitizers-cmake (vendored in OpenXR-SDK/) — MIT / Apache-2.0
                 </TextBlock>
-                <TextBlock Margin="0,4,0,0">
-                    <Hyperlink NavigateUri="https://github.com/DonutzAndCoffee/Donutz-VR-HUD" RequestNavigate="Hyperlink_RequestNavigate">
-                        https://github.com/DonutzAndCoffee/Donutz-VR-HUD
-                    </Hyperlink>
-                </TextBlock>
+                
             </StackPanel>
         </ScrollViewer>
 
-        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
             <Button x:Name="CloseButton" Content="{Binding Source={x:Static local:Localization.Instance}, Path=[About.Close]}" Width="80" Click="CloseButton_Click" IsDefault="True" IsCancel="True"/>
         </StackPanel>
     </Grid>

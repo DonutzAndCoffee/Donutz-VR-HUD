@@ -34,7 +34,13 @@
       references. Suppress it.
     -->
     <NoWarn>$(NoWarn);XDG-0001</NoWarn>
+    <ApplicationIcon>Assets\AppIcon.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\AppIcon.ico" />
+    <Resource Include="Assets\AppIcon.png" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Silk.NET.OpenXR" Version="2.22.0" />
