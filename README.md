@@ -28,6 +28,9 @@ The two components communicate via a local **named pipe IPC channel** (panel tra
 - English UI.
 - Dark mode support (WPF-UI).
 
+<img width="946" height="953" alt="image" src="https://github.com/user-attachments/assets/a9ae346d-7974-41b3-be7d-5a1b32d3ea4b" />
+
+
 ## Repository layout
 
 | Path | Description |
