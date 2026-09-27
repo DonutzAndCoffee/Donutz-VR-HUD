@@ -30,6 +30,9 @@ The two components communicate via a local **named pipe IPC channel** (panel tra
 
 <img width="946" height="953" alt="image" src="https://github.com/user-attachments/assets/a9ae346d-7974-41b3-be7d-5a1b32d3ea4b" />
 
+<img width="2560" height="1440" alt="Screenshot 2026-09-27 06-24-59" src="https://github.com/user-attachments/assets/6bccecb7-72d9-4066-8698-42a4f3346338" />
+
+
 
 ## Repository layout
 
