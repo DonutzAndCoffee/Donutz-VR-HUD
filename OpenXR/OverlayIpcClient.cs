@@ -141,8 +141,8 @@ namespace Donutz_VR_HUD.OpenXR
             }
             catch (TimeoutException)
             {
-                LastError = $"Zeitüberschreitung nach {timeoutMs} ms – die Pipe \"{PipeName}\" wurde nicht gefunden. " +
-                    "Das native Layer wurde entweder nicht in die VR-Anwendung geladen, oder diese hat noch keine OpenXR-Session gestartet.";
+                LastError = $"Timed out after {timeoutMs} ms – pipe \"{PipeName}\" was not found. " +
+                    "Either the native layer was not loaded into the VR application, or it has not started an OpenXR session yet.";
                 pipe.Dispose();
                 return false;
             }

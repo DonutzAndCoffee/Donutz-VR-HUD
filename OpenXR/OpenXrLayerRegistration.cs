@@ -53,7 +53,7 @@ namespace Donutz_VR_HUD.OpenXR
             if (!IsManifestPresent)
             {
                 throw new FileNotFoundException(
-                    $"Layer-Manifest nicht gefunden: '{ManifestPath}'. Das native Layer-Projekt (NativeLayer/) muss zuerst gebaut und dessen Ausgabe (DLL + JSON) neben '{Path.GetFileName(Environment.ProcessPath) ?? "Donutz VR HUD.exe"}' bereitgestellt werden.",
+                    $"Layer manifest not found: '{ManifestPath}'. The native layer project (NativeLayer/) must be built first and its output (DLL + JSON) placed next to '{Path.GetFileName(Environment.ProcessPath) ?? "Donutz VR HUD.exe"}'.",
                     ManifestPath);
             }
 
@@ -65,8 +65,8 @@ namespace Donutz_VR_HUD.OpenXR
             catch (UnauthorizedAccessException ex)
             {
                 throw new UnauthorizedAccessException(
-                    "Schreibzugriff auf HKEY_LOCAL_MACHINE verweigert. Bitte 'Donutz VR HUD' als Administrator starten, um den OpenXR API Layer zu registrieren " +
-                    "(iRacings OpenXR-Loader berücksichtigt nur systemweite HKLM-Registrierungen, nicht HKCU).",
+                    "Write access to HKEY_LOCAL_MACHINE was denied. Please start 'Donutz VR HUD' as administrator to register the OpenXR API layer " +
+                    "(iRacing's OpenXR loader only honors system-wide HKLM registrations, not HKCU).",
                     ex);
             }
 
@@ -86,7 +86,7 @@ namespace Donutz_VR_HUD.OpenXR
             catch (UnauthorizedAccessException ex)
             {
                 throw new UnauthorizedAccessException(
-                    "Schreibzugriff auf HKEY_LOCAL_MACHINE verweigert. Bitte 'Donutz VR HUD' als Administrator starten, um den OpenXR API Layer zu entfernen.",
+                    "Write access to HKEY_LOCAL_MACHINE was denied. Please start 'Donutz VR HUD' as administrator to remove the OpenXR API layer.",
                     ex);
             }
 

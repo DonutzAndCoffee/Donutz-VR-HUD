@@ -126,7 +126,11 @@ namespace Donutz_VR_HUD.Settings
         /// </summary>
         public bool AutoSaveProfileOnSimExit { get; set; }
 
-        /// <summary>UI language for the desktop GUI and the VR overlay adjustment HUD ("de" or "en"). Defaults to German.</summary>
-        public string Language { get; set; } = "de";
+        /// <summary>
+        /// Legacy UI language setting ("de" or "en") kept only for backward
+        /// compatibility with older settings files. The app is English-only
+        /// now, so this value is no longer read or written.
+        /// </summary>
+        public string Language { get; set; } = "en";
     }
 }

@@ -11,7 +11,7 @@ namespace Donutz_VR_HUD
         public NudgeAction Action { get; }
         public string Label { get; }
 
-        private string _statusText = "Kein Knopf zugewiesen.";
+        private string _statusText = "No button assigned.";
         public string StatusText
         {
             get => _statusText;

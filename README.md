@@ -25,7 +25,7 @@ The two components communicate via a local **named pipe IPC channel** (panel tra
 - **Profiles** for saving/restoring different panel layouts per game or session.
 - **SimHub** integration for telemetry data.
 - Automatic detection of the active game/process.
-- Localization support (German/English).
+- English UI.
 - Dark mode support (WPF-UI).
 
 ## Repository layout

@@ -120,14 +120,12 @@ namespace Donutz_VR_HUD
             RefreshRunningProcessNames();
             InitializeNudgeActionRows();
 
-            Localization.LanguageChanged += ApplyLocalization;
-
             _resetButtonBinding.ButtonPressed += () => Dispatcher.Invoke(() => _ipcClient?.Recenter());
             _resetButtonBinding.Learned += (device, buttonIndex) => Dispatcher.Invoke(() =>
             {
                 RefreshResetBindingRows();
                 LearnResetButton.IsEnabled = true;
-                LearnResetButton.Content = "Knopf zuweisen…";
+                LearnResetButton.Content = "Assign button…";
                 SaveSettings();
             });
 
@@ -137,10 +135,10 @@ namespace Donutz_VR_HUD
                 var row = NudgeActionRows.FirstOrDefault(r => r.Action == action);
                 if (row is not null)
                 {
-                    row.StatusText = $"\"{device.Name}\", Taste {buttonIndex}";
+                    row.StatusText = $"\"{device.Name}\", button {buttonIndex}";
                 }
 
-                NudgeStatusText.Text = $"{GetNudgeActionLabel(action)} zugewiesen: \"{device.Name}\", Taste {buttonIndex}.";
+                NudgeStatusText.Text = $"{GetNudgeActionLabel(action)} assigned: \"{device.Name}\", button {buttonIndex}.";
                 SaveSettings();
             });
 
@@ -162,31 +160,14 @@ namespace Donutz_VR_HUD
             PreviewKeyUp += MainWindow_PreviewKeyUp;
         }
 
-        /// <summary>Handles the user picking a different UI language, applying it live and persisting the choice.</summary>
-        private void LanguageComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            if (_isLoadingSettings || LanguageComboBox.SelectedItem is not ComboBoxItem item)
-            {
-                return;
-            }
-
-            Localization.CurrentLanguage = string.Equals(item.Tag as string, "en", StringComparison.OrdinalIgnoreCase)
-                ? AppLanguage.English
-                : AppLanguage.German;
-
-            SaveSettings();
-        }
-
         /// <summary>
-        /// Re-applies the current <see cref="Localization.CurrentLanguage"/>
-        /// to the static edit-mode HUD labels/legend in the desktop GUI (and
+        /// Applies the static edit-mode HUD labels/legend in the desktop GUI (and
         /// refreshes the dynamic parts, including the VR overlay HUD shown
         /// during panel adjustment).
         /// </summary>
         private void ApplyLocalization()
         {
             EditModeToggleCheckBox.Content = Localization.T("EditMode.ToggleCheckBox");
-            LanguageLabelText.Text = Localization.T("Language.Label");
 
             EditModeHudTitleText.Text = Localization.T("EditMode.Title");
             EditModeHudPanelLabelText.Text = Localization.T("EditMode.PanelLabel");
@@ -281,7 +262,7 @@ namespace Donutz_VR_HUD
                 {
                     if (_nativeLogLastLength != 0)
                     {
-                        NativeLogTextBox.Text = $"(Datei existiert nicht: {path})";
+                        NativeLogTextBox.Text = $"(file does not exist: {path})";
                         _nativeLogLastLength = 0;
                     }
                     return;
@@ -321,12 +302,12 @@ namespace Donutz_VR_HUD
 
             if (OpenXrLayerRegistration.IsRegistered())
             {
-                LayerStatusText.Text = "OpenXR API Layer ist registriert (HKEY_LOCAL_MACHINE). Overlays sollten in unterstützten Titeln (z.B. iRacing) erscheinen.";
+                LayerStatusText.Text = "OpenXR API layer is registered (HKEY_LOCAL_MACHINE). Overlays should appear in supported titles (e.g. iRacing).";
                 UnregisterLayerButton.IsEnabled = true;
             }
             else
             {
-                LayerStatusText.Text = "OpenXR API Layer ist noch nicht registriert.";
+                LayerStatusText.Text = "OpenXR API layer is not yet registered.";
                 UnregisterLayerButton.IsEnabled = false;
             }
         }
@@ -336,14 +317,14 @@ namespace Donutz_VR_HUD
             try
             {
                 OpenXrLayerRegistration.Register();
-                StatusText.Text = "OpenXR API Layer registriert (HKEY_LOCAL_MACHINE).";
+                StatusText.Text = "OpenXR API layer registered (HKEY_LOCAL_MACHINE).";
             }
             catch (UnauthorizedAccessException)
             {
                 if (MessageBox.Show(
-                        "Zum Registrieren des OpenXR API Layers werden Administratorrechte benötigt (HKEY_LOCAL_MACHINE). " +
-                        "Soll die App jetzt als Administrator neu gestartet werden?",
-                        "Administratorrechte erforderlich",
+                        "Administrator rights are required to register the OpenXR API layer (HKEY_LOCAL_MACHINE). " +
+                        "Do you want to restart the app as administrator now?",
+                        "Administrator rights required",
                         MessageBoxButton.YesNo,
                         MessageBoxImage.Question) == MessageBoxResult.Yes)
                 {
@@ -351,12 +332,12 @@ namespace Donutz_VR_HUD
                 }
                 else
                 {
-                    StatusText.Text = "Layer-Registrierung abgebrochen: Administratorrechte erforderlich.";
+                    StatusText.Text = "Layer registration cancelled: administrator rights required.";
                 }
             }
             catch (Exception ex)
             {
-                StatusText.Text = $"Layer-Registrierung fehlgeschlagen: {ex.Message}";
+                StatusText.Text = $"Layer registration failed: {ex.Message}";
             }
             finally
             {
@@ -369,14 +350,14 @@ namespace Donutz_VR_HUD
             try
             {
                 OpenXrLayerRegistration.Unregister();
-                StatusText.Text = "OpenXR API Layer entfernt.";
+                StatusText.Text = "OpenXR API layer removed.";
             }
             catch (UnauthorizedAccessException)
             {
                 if (MessageBox.Show(
-                        "Zum Entfernen des OpenXR API Layers werden Administratorrechte benötigt (HKEY_LOCAL_MACHINE). " +
-                        "Soll die App jetzt als Administrator neu gestartet werden?",
-                        "Administratorrechte erforderlich",
+                        "Administrator rights are required to remove the OpenXR API layer (HKEY_LOCAL_MACHINE). " +
+                        "Do you want to restart the app as administrator now?",
+                        "Administrator rights required",
                         MessageBoxButton.YesNo,
                         MessageBoxImage.Question) == MessageBoxResult.Yes)
                 {
@@ -384,12 +365,12 @@ namespace Donutz_VR_HUD
                 }
                 else
                 {
-                    StatusText.Text = "Layer-Entfernung abgebrochen: Administratorrechte erforderlich.";
+                    StatusText.Text = "Layer removal cancelled: administrator rights required.";
                 }
             }
             catch (Exception ex)
             {
-                StatusText.Text = $"Layer-Entfernung fehlgeschlagen: {ex.Message}";
+                StatusText.Text = $"Layer removal failed: {ex.Message}";
             }
             finally
             {
@@ -411,7 +392,7 @@ namespace Donutz_VR_HUD
                 var exePath = Environment.ProcessPath;
                 if (string.IsNullOrEmpty(exePath))
                 {
-                    StatusText.Text = "Neustart als Administrator fehlgeschlagen: Pfad zur .exe konnte nicht ermittelt werden.";
+                    StatusText.Text = "Restart as administrator failed: could not determine path to the .exe.";
                     return;
                 }
 
@@ -426,7 +407,7 @@ namespace Donutz_VR_HUD
             catch (System.ComponentModel.Win32Exception)
             {
                 // UAC prompt was cancelled by the user.
-                StatusText.Text = "Neustart als Administrator abgebrochen.";
+                StatusText.Text = "Restart as administrator cancelled.";
             }
         }
 
@@ -436,9 +417,6 @@ namespace Donutz_VR_HUD
             try
             {
                 var settings = SettingsStore.Load();
-
-                Localization.CurrentLanguage = Localization.FromSettingsValue(settings.Language);
-                LanguageComboBox.SelectedIndex = Localization.CurrentLanguage == AppLanguage.English ? 1 : 0;
 
                 if (settings.Panels.Count == 0)
                 {
@@ -477,7 +455,7 @@ namespace Donutz_VR_HUD
                     var row = NudgeActionRows.FirstOrDefault(r => r.Action == action);
                     if (row is not null)
                     {
-                        row.StatusText = $"\"{binding.DeviceName}\", Taste {binding.ButtonIndex}";
+                        row.StatusText = $"\"{binding.DeviceName}\", button {binding.ButtonIndex}";
                     }
                 }
             }
@@ -498,8 +476,7 @@ namespace Donutz_VR_HUD
             {
                 Panels = Panels.Select(PanelSettings.FromPanel).ToList(),
                 AutoLoadProfiles = _autoLoadProfiles,
-                AutoSaveProfileOnSimExit = _autoSaveProfileOnSimExit,
-                Language = Localization.ToSettingsValue(Localization.CurrentLanguage)
+                AutoSaveProfileOnSimExit = _autoSaveProfileOnSimExit
             };
 
             settings.ResetBindings = _resetButtonBinding.Bindings
@@ -707,7 +684,7 @@ namespace Donutz_VR_HUD
         {
             if (ProfilesComboBox.SelectedItem is not Profile selected)
             {
-                ProfileStatusText.Text = "Bitte zuerst ein Profil auswählen.";
+                ProfileStatusText.Text = "Please select a profile first.";
                 return;
             }
 
@@ -722,14 +699,14 @@ namespace Donutz_VR_HUD
             Profiles[index] = updated;
             ProfileStore.Save(Profiles.ToList());
             ProfilesComboBox.SelectedItem = updated;
-            ProfileStatusText.Text = $"Profil \"{updated.Name}\" aktualisiert.";
+            ProfileStatusText.Text = $"Profile \"{updated.Name}\" updated.";
         }
 
         private void DeleteProfileButton_Click(object sender, RoutedEventArgs e)
         {
             if (ProfilesComboBox.SelectedItem is not Profile selected)
             {
-                ProfileStatusText.Text = "Bitte zuerst ein Profil auswählen.";
+                ProfileStatusText.Text = "Please select a profile first.";
                 return;
             }
 
@@ -739,25 +716,25 @@ namespace Donutz_VR_HUD
             {
                 _lastAutoLoadedProfileId = null;
             }
-            ProfileStatusText.Text = $"Profil \"{selected.Name}\" gelöscht.";
+            ProfileStatusText.Text = $"Profile \"{selected.Name}\" deleted.";
         }
 
         private async void LoadProfileButton_Click(object sender, RoutedEventArgs e)
         {
             if (ProfilesComboBox.SelectedItem is not Profile selected)
             {
-                ProfileStatusText.Text = "Bitte zuerst ein Profil auswählen.";
+                ProfileStatusText.Text = "Please select a profile first.";
                 return;
             }
 
             // Any saved profile can be loaded regardless of the car/game it
             // was originally created for: this lets the user pick a similar
             // car's profile as a starting point, adjust the panels and the
-            // "Fahrzeug"/"Spiel" fields for the current car, and then use
-            // "Speichern unter…" to store it as a new, separate profile
+            // "Car"/"Game" fields for the current car, and then use
+            // "Save as…" to store it as a new, separate profile
             // without overwriting the original.
             await ApplyProfileAsync(selected, isAutomatic: false);
-            ProfileStatusText.Text = $"Profil \"{selected.Name}\" geladen. Bei Bedarf Fahrzeug/Panels anpassen und unter neuem Namen speichern.";
+            ProfileStatusText.Text = $"Profile \"{selected.Name}\" loaded. Adjust car/panels if needed and save under a new name.";
         }
 
         private void ProfilesComboBox_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
@@ -774,11 +751,11 @@ namespace Donutz_VR_HUD
 
         private async void TakeCarFromSimHubButton_Click(object sender, RoutedEventArgs e)
         {
-            ProfileStatusText.Text = "Frage SimHub nach dem aktuellen Fahrzeug…";
+            ProfileStatusText.Text = "Asking SimHub for the current car…";
             var state = await SimHubClient.TryGetGameStateAsync();
             if (state is null)
             {
-                ProfileStatusText.Text = "SimHub nicht erreichbar. Bitte prüfen, dass SimHub läuft und der integrierte Webserver (Standardport 8888) aktiv ist.";
+                ProfileStatusText.Text = "SimHub is not reachable. Please check that SimHub is running and its built-in web server (default port 8888) is active.";
                 return;
             }
 
@@ -790,13 +767,13 @@ namespace Donutz_VR_HUD
             if (string.IsNullOrWhiteSpace(state.CarModel))
             {
                 ProfileStatusText.Text = state.GameRunning
-                    ? "SimHub läuft, aber es ist noch kein Fahrzeug geladen (z.B. im Menü). Bitte in ein Fahrzeug einsteigen und erneut versuchen."
-                    : "SimHub läuft, aber es ist aktuell kein Spiel aktiv. Bitte Simulation starten und erneut versuchen.";
+                    ? "SimHub is running, but no car is loaded yet (e.g. still in a menu). Please get in a car and try again."
+                    : "SimHub is running, but no game is currently active. Please start the simulation and try again.";
                 return;
             }
 
             ProfileCarTextBox.Text = state.CarModel;
-            ProfileStatusText.Text = $"Fahrzeug \"{state.CarModel}\" von SimHub übernommen.";
+            ProfileStatusText.Text = $"Car \"{state.CarModel}\" retrieved from SimHub.";
         }
 
         private void AutoLoadProfilesCheckBox_Changed(object sender, RoutedEventArgs e)
@@ -957,7 +934,7 @@ namespace Donutz_VR_HUD
         /// <summary>
         /// Periodically (a) asks SimHub which game/car is currently active
         /// and mirrors that into the profile game/car fields (so the user
-        /// never has to click "Von SimHub übernehmen" manually) and (b), if
+        /// never has to click "Get from SimHub" manually) and (b), if
         /// auto-loading is enabled, applies the best-matching profile:
         /// game+car match takes precedence over car-only, then game-only,
         /// then (if configured) a designated default profile as a
@@ -998,10 +975,10 @@ namespace Donutz_VR_HUD
                     }
 
                     ProfileStatusText.Text = !string.IsNullOrWhiteSpace(liveState.CarModel)
-                        ? $"SimHub erkennt: {liveState.GameName} / {liveState.CarModel}"
+                        ? $"SimHub detected: {liveState.GameName} / {liveState.CarModel}"
                         : liveState.GameRunning
-                            ? $"SimHub erkennt: {liveState.GameName} (kein Fahrzeug geladen)"
-                            : "SimHub läuft, aktuell kein Spiel aktiv.";
+                            ? $"SimHub detected: {liveState.GameName} (no car loaded)"
+                            : "SimHub is running, no game currently active.";
                 }
             }
 
@@ -1146,7 +1123,7 @@ namespace Donutz_VR_HUD
         {
             if (Panels.Count >= MaxPanels)
             {
-                StatusText.Text = $"Es sind maximal {MaxPanels} Panels möglich.";
+                StatusText.Text = $"A maximum of {MaxPanels} panels is possible.";
                 return;
             }
 
@@ -1186,7 +1163,7 @@ namespace Donutz_VR_HUD
 
             var dialog = new Microsoft.Win32.OpenFileDialog
             {
-                Filter = "Bilddateien|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.tiff|Alle Dateien|*.*",
+                Filter = "Image files|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.tiff|All files|*.*",
                 CheckFileExists = true
             };
 
@@ -1592,7 +1569,7 @@ namespace Donutz_VR_HUD
             ResetVisorPlacement(panel);
         }
 
-        /// <summary>Shared by <see cref="ApplyDefaultVisorPlacement"/> and the manual "Startgröße" button.</summary>
+        /// <summary>Shared by <see cref="ApplyDefaultVisorPlacement"/> and the manual "Reset size" button.</summary>
         private static void ResetVisorPlacement(OverlayPanel panel)
         {
             panel.HeadLocked = true;
@@ -1866,12 +1843,12 @@ namespace Donutz_VR_HUD
             if (_resetButtonBinding.IsLearning)
             {
                 _resetButtonBinding.CancelLearning();
-                LearnResetButton.Content = "Knopf zuweisen…";
-                ResetBindingStatusText.Text = "Zuweisung abgebrochen.";
+                LearnResetButton.Content = "Assign button…";
+                ResetBindingStatusText.Text = "Assignment cancelled.";
                 return;
             }
 
-            ResetBindingStatusText.Text = "Bitte jetzt den gewünschten Knopf drücken…";
+            ResetBindingStatusText.Text = "Please press the desired button now…";
             LearnResetButton.Content = "Abbrechen";
             _resetButtonBinding.StartLearning();
         }
@@ -1896,14 +1873,14 @@ namespace Donutz_VR_HUD
                 ResetBindingRows.Add(new ResetBindingRow(i, bindings[i].DeviceName, bindings[i].ButtonIndex));
             }
 
-            ResetBindingStatusText.Text = bindings.Count == 0 ? "Kein Knopf zugewiesen." : string.Empty;
+            ResetBindingStatusText.Text = bindings.Count == 0 ? "No button assigned." : string.Empty;
             ResetBindingStatusText.Visibility = bindings.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         }
 
         private void ManualResetButton_Click(object sender, RoutedEventArgs e)
         {
             _ipcClient?.Recenter();
-            StatusText.Text = "VR zurückgesetzt.";
+            StatusText.Text = "VR reset.";
         }
 
         private static string GetNudgeActionLabel(NudgeAction action) => action switch
@@ -1914,15 +1891,15 @@ namespace Donutz_VR_HUD
             NudgeAction.MoveYPos => "Y +",
             NudgeAction.MoveZNeg => "Z -",
             NudgeAction.MoveZPos => "Z +",
-            NudgeAction.PitchNeg => "Neigung -",
-            NudgeAction.PitchPos => "Neigung +",
-            NudgeAction.YawNeg => "Drehung -",
-            NudgeAction.YawPos => "Drehung +",
-            NudgeAction.RollNeg => "Rollen -",
-            NudgeAction.RollPos => "Rollen +",
-            NudgeAction.NextPanel => "Nächstes Panel",
-            NudgeAction.PrevPanel => "Vorheriges Panel",
-            NudgeAction.ToggleStepSize => "Schrittweite wechseln",
+            NudgeAction.PitchNeg => "Pitch -",
+            NudgeAction.PitchPos => "Pitch +",
+            NudgeAction.YawNeg => "Yaw -",
+            NudgeAction.YawPos => "Yaw +",
+            NudgeAction.RollNeg => "Roll -",
+            NudgeAction.RollPos => "Roll +",
+            NudgeAction.NextPanel => "Next panel",
+            NudgeAction.PrevPanel => "Previous panel",
+            NudgeAction.ToggleStepSize => "Switch step size",
             NudgeAction.ScaleUp => "Zoom +",
             NudgeAction.ScaleDown => "Zoom -",
             _ => action.ToString()
@@ -1947,11 +1924,11 @@ namespace Donutz_VR_HUD
             if (_panelNudgeController.IsLearning)
             {
                 _panelNudgeController.CancelLearning();
-                NudgeStatusText.Text = "Zuweisung abgebrochen.";
+                NudgeStatusText.Text = "Assignment cancelled.";
                 return;
             }
 
-            NudgeStatusText.Text = $"Bitte jetzt den Knopf für \"{GetNudgeActionLabel(action)}\" drücken…";
+            NudgeStatusText.Text = $"Please press the button for \"{GetNudgeActionLabel(action)}\" now…";
             _panelNudgeController.StartLearning(action);
         }
 
@@ -1966,7 +1943,7 @@ namespace Donutz_VR_HUD
             var row = NudgeActionRows.FirstOrDefault(r => r.Action == action);
             if (row is not null)
             {
-                row.StatusText = "Kein Knopf zugewiesen.";
+                row.StatusText = "No button assigned.";
             }
 
             SaveSettings();
@@ -2118,6 +2095,16 @@ namespace Donutz_VR_HUD
             new Views.AboutWindow { Owner = this }.ShowDialog();
         }
 
+        private void SettingsToggleButton_Click(object sender, RoutedEventArgs e)
+        {
+            GlobalSettingsPopup.IsOpen = !GlobalSettingsPopup.IsOpen;
+        }
+
+        private void NativeLogToggleButton_Click(object sender, RoutedEventArgs e)
+        {
+            NativeLogPopup.IsOpen = !NativeLogPopup.IsOpen;
+        }
+
         private async void OverlayStatusButton_Click(object sender, RoutedEventArgs e)
         {
             if (_ipcClient is not null)
@@ -2151,26 +2138,26 @@ namespace Donutz_VR_HUD
             {
                 if (Panels.Count == 0)
                 {
-                    StatusText.Text = "Bitte mindestens ein Panel hinzufügen.";
+                    StatusText.Text = "Please add at least one panel.";
                     SetOverlayStatus(OverlayStatus.Error);
                     return false;
                 }
 
                 if (!OpenXrLayerRegistration.IsRegistered())
                 {
-                    StatusText.Text = "OpenXR API Layer ist nicht registriert. Bitte zuerst registrieren.";
+                    StatusText.Text = "OpenXR API layer is not registered. Please register it first.";
                     SetOverlayStatus(OverlayStatus.Error);
                     return false;
                 }
 
                 var ipcClient = new OverlayIpcClient();
-                StatusText.Text = "Verbinde mit nativem OpenXR Layer (z.B. in iRacing)…";
+                StatusText.Text = "Connecting to native OpenXR layer (e.g. in iRacing)…";
                 SetOverlayStatus(OverlayStatus.Waiting);
                 if (!await ipcClient.ConnectAsync())
                 {
                     ipcClient.Dispose();
-                    StatusText.Text = "Verbindung zum nativen Layer fehlgeschlagen. Läuft die VR-Anwendung (z.B. iRacing) bereits in VR mit registriertem Layer? " +
-                        $"Diagnose-Log des nativen Layers: {OverlayIpcClient.NativeLayerLogPath} (existiert die Datei nicht, wurde die DLL von iRacing nicht geladen).";
+                    StatusText.Text = "Connection to native layer failed. Is the VR application (e.g. iRacing) already running in VR with the layer registered? " +
+                        $"Native layer diagnostic log: {OverlayIpcClient.NativeLayerLogPath} (if the file does not exist, the DLL was not loaded by iRacing).";
                     SetOverlayStatus(OverlayStatus.Error);
                     return false;
                 }
@@ -2198,7 +2185,7 @@ namespace Donutz_VR_HUD
             }
             catch (Exception ex)
             {
-                StatusText.Text = $"Fehler beim Starten des Overlays: {ex.Message}";
+                StatusText.Text = $"Error starting the overlay: {ex.Message}";
                 StopOverlay();
                 SetOverlayStatus(OverlayStatus.Error);
                 return false;

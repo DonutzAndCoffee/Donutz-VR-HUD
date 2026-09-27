@@ -15,7 +15,7 @@ namespace Donutz_VR_HUD
         public ResetBindingRow(int index, string? deviceName, int buttonIndex)
         {
             Index = index;
-            DisplayText = $"\"{deviceName}\", Taste {buttonIndex}";
+            DisplayText = $"\"{deviceName}\", button {buttonIndex}";
         }
     }
 }
