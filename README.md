@@ -70,6 +70,23 @@ The two components communicate via a local **named pipe IPC channel** (panel tra
 1. Launch the `Donutz VR HUD` WPF app to configure your overlay panels (source, position, size, etc.) and save a profile.
 2. Start iRacing (or another OpenXR title) with the layer registered — the native layer will pick up panel updates from the WPF app over the IPC channel and render them as quad layers in the VR session.
 
+### Using OpenVR-only sims (Assetto Corsa, AMS2, …) via OpenComposite
+
+Some sims (e.g. the original **Assetto Corsa** or **Automobilista 2**) only support OpenVR/SteamVR. Because Donutz VR HUD is an OpenXR API layer, it isn't loaded by these games directly. Use [OpenComposite](https://gitlab.com/znixian/OpenOVR) to translate OpenVR to OpenXR, and the layer then works as usual:
+
+1. Install OpenComposite, either system-wide with the **OpenComposite Switcher** ("Switch to OpenComposite") or per game by replacing `openvr_api.dll` in the game folder.
+2. Make sure your headset's OpenXR runtime (Meta/Oculus, WMR, Pimax, Virtual Desktop, SteamVR, …) is set as the active OpenXR runtime.
+3. Start the Donutz VR HUD app, then launch the game in VR mode.
+4. If the panels don't show up, check `%ProgramData%\DonutzVrHud\DonutzVrHudLayer.log` to see whether the layer was loaded.
+
+Telemetry and auto-profile game detection for these sims work through SimHub. For process-based auto-loading, set the profile's game process name, e.g.:
+
+| Sim | Process name |
+|---|---|
+| iRacing | `iRacingSim64DX11` |
+| Assetto Corsa | `acs` |
+| Automobilista 2 | `AMS2AVX` (or `AMS2`) |
+
 ## Third-party components & licenses
 
 This project builds on several open-source components, each under its own license. If you distribute binaries built from this repository (e.g. installers, releases), make sure to include attribution/license texts for at least the following:
