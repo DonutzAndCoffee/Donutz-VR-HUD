@@ -936,6 +936,7 @@ namespace
             static const char* kHandKeys[2] = { "ctrl_marker_left", "ctrl_marker_right" };
             static const char* kLaserKeys[2] = { "ctrl_laser_left", "ctrl_laser_right" };
             static const char* kGrabHighlightKeys[2] = { "ctrl_grab_highlight_left", "ctrl_grab_highlight_right" };
+            static const char* kHitCursorKeys[2] = { "ctrl_hit_cursor_left", "ctrl_hit_cursor_right" };
 
             for (int hand = 0; hand < 2; ++hand)
             {
@@ -993,6 +994,24 @@ namespace
                         quad.pose = visual.grabHighlightPose;
                         quad.size.width = visual.grabHighlightWidthMeters;
                         quad.size.height = visual.grabHighlightHeightMeters;
+                        quads.push_back(quad);
+                    }
+                }
+
+                if (visual.hitCursorVisible)
+                {
+                    if (PanelSwapchain* cursorSwapchain = EnsureVisualSwapchain(session, kHitCursorKeys[hand], visual.hitCursorColor))
+                    {
+                        XrCompositionLayerQuad quad{ XR_TYPE_COMPOSITION_LAYER_QUAD };
+                        quad.layerFlags = XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT;
+                        quad.space = g_localSpace;
+                        quad.eyeVisibility = XR_EYE_VISIBILITY_BOTH;
+                        quad.subImage.swapchain = cursorSwapchain->swapchain;
+                        quad.subImage.imageRect.offset = { 0, 0 };
+                        quad.subImage.imageRect.extent = { cursorSwapchain->width, cursorSwapchain->height };
+                        quad.pose = visual.hitCursorPose;
+                        quad.size.width = visual.hitCursorSizeMeters;
+                        quad.size.height = visual.hitCursorSizeMeters;
                         quads.push_back(quad);
                     }
                 }

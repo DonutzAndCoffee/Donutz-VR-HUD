@@ -1986,10 +1986,14 @@ namespace Donutz_VR_HUD
             Dispatcher.Invoke(() =>
             {
                 var panel = Panels.FirstOrDefault(p => p.Id == panelId);
-                if (panel is null || panel.IsLocked)
+                if (panel is null)
                 {
                     return;
                 }
+
+                // Grabbing a panel in VR is an explicit intent to move it,
+                // so unlock it automatically.
+                panel.IsLocked = false;
 
                 if (!_isEditModeActive)
                 {
@@ -1997,11 +2001,12 @@ namespace Donutz_VR_HUD
                 }
 
                 ActiveNudgePanelComboBox.SelectedItem = panel;
+                UpdateEditModeHud();
             });
         }
 
         /// <summary>
-        /// Applies the final panel transform reported by the native layer
+        /// Applies the final panel transform
         /// after a VR controller grab ended, so the corresponding
         /// <see cref="OverlayPanel"/> (and, via its bindings, the UI and
         /// eventual profile persistence) reflect the new position. Raised

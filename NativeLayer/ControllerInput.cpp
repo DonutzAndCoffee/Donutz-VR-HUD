@@ -244,6 +244,21 @@ namespace ControllerInput
 			return true;
 		}
 
+		// Pose of the hit cursor dot: on the ray/panel intersection point,
+		// aligned with the panel and lifted slightly off its front face so
+		// it isn't z-fighting with / hidden behind the panel quad.
+		XrPosef HitCursorPose(const XrVector3f& rayOrigin, const XrVector3f& rayDir, float distance, const XrPosef& panelWorld)
+		{
+			constexpr float kSurfaceOffsetMeters = 0.003f;
+			const XrVector3f normal = QuatRotateVector(panelWorld.orientation, XrVector3f{ 0.0f, 0.0f, 1.0f });
+			XrPosef cursor{};
+			cursor.orientation = panelWorld.orientation;
+			cursor.position = VectorAdd(
+				VectorAdd(rayOrigin, XrVector3f{ rayDir.x * distance, rayDir.y * distance, rayDir.z * distance }),
+				XrVector3f{ normal.x * kSurfaceOffsetMeters, normal.y * kSurfaceOffsetMeters, normal.z * kSurfaceOffsetMeters });
+			return cursor;
+		}
+
 		// Converts a panel's authored (position, rotationDeg) into a
 		// world-space (local-space) pose, composed with the current cockpit
 		// anchor, mirroring the math in HookedFunctions.cpp's
@@ -518,7 +533,17 @@ namespace ControllerInput
 						if (std::memcmp(panel.panelId.bytes, grab.panelId.bytes, sizeof(panel.panelId.bytes)) == 0)
 						{
 							XrPosef panelWorld = PanelWorldPose(panel);
-							beamLength = VectorLength(VectorSub(panelWorld.position, aimLocation.pose.position));
+							float grabHitDistance = 0.0f;
+							if (RayHitsPanel(aimLocation.pose.position, aimForward, panelWorld, panel.widthMeters, panel.heightMeters, &grabHitDistance))
+							{
+								beamLength = grabHitDistance;
+								visual.hitCursorVisible = true;
+								visual.hitCursorPose = HitCursorPose(aimLocation.pose.position, aimForward, grabHitDistance, panelWorld);
+							}
+							else
+							{
+								beamLength = VectorLength(VectorSub(panelWorld.position, aimLocation.pose.position));
+							}
 
 							constexpr float kHighlightMargin = 1.08f;
 							visual.grabHighlightVisible = true;
@@ -573,6 +598,9 @@ namespace ControllerInput
 						visual.grabHighlightPose = bestPanelWorld;
 						visual.grabHighlightWidthMeters = bestWidthMeters * kHighlightMargin;
 						visual.grabHighlightHeightMeters = bestHeightMeters * kHighlightMargin;
+
+						visual.hitCursorVisible = true;
+						visual.hitCursorPose = HitCursorPose(aimLocation.pose.position, aimForward, bestHitDistance, bestPanelWorld);
 					}
 				}
 

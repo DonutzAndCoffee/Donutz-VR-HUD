@@ -80,6 +80,14 @@ namespace ControllerInput
 		XrPosef grabHighlightPose{};
 		float grabHighlightWidthMeters = 0.0f;
 		float grabHighlightHeightMeters = 0.0f;
+
+		// Small dot drawn exactly where the aim ray intersects the
+		// targeted panel, so the user can see precisely what the laser
+		// points at (a thin flat laser quad alone is hard to judge).
+		bool hitCursorVisible = false;
+		XrPosef hitCursorPose{};
+		VisualColor hitCursorColor{ 1.0f, 1.0f, 1.0f, 0.95f };
+		float hitCursorSizeMeters = 0.012f;
 	};
 
 	// One-shot nudge event to forward to the managed app's existing
