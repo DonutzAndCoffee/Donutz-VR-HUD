@@ -46,7 +46,26 @@ The two components communicate via a local **named pipe IPC channel** (panel tra
 | `OpenXR/` | Managed-side OpenXR layer registration and IPC client |
 | `OpenXR-SDK/` | Vendored Khronos OpenXR SDK (headers used by the native layer) |
 
-## Getting started
+## Installation (prebuilt release)
+
+1. Install the [.NET 10 Desktop Runtime (x64)](https://dotnet.microsoft.com/download/dotnet/10.0) if not already present.
+2. Download `DonutzVRHUD-v1.1.0-win-x64.zip` from the [Releases](https://github.com/DonutzAndCoffee/Donutz-VR-HUD/releases) page and extract it to a permanent folder (the OpenXR layer is registered from this location).
+3. Start `Donutz VR HUD.exe` and use the layer registration button in the app to register the OpenXR API layer (requires administrator rights).
+4. Start your OpenXR sim (e.g. iRacing) in VR.
+
+## Changelog
+
+### v1.1.0
+- Fixed overlay reconnect after restarting the app or the game, and panel interactivity after reconnect.
+- Improved panel grab handling and hit cursor visuals for VR controller interaction.
+- Added close-to-tray window behavior.
+- Documented OpenComposite setup for OpenVR-only sims (Assetto Corsa, AMS2, ...).
+- Localized overlay status messages.
+
+### v1.0.0
+- Initial release.
+
+## Getting started (building from source)
 
 ### Prerequisites
 
