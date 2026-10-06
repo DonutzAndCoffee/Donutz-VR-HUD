@@ -130,6 +130,7 @@ namespace
 		panel.heightMeters = payload.heightMeters;
 		panel.headLocked = payload.headLocked != 0;
 		panel.opaqueBackground = payload.opaqueBackground != 0;
+		panel.nonInteractive = payload.nonInteractive != 0;
 	}
 
 	void HandleUpdateFrame(const IpcServer::UpdateFramePayload& payload)

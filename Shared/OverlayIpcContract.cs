@@ -86,6 +86,13 @@ namespace Donutz_VR_HUD.Shared
         /// black instead of letting the scene behind the panel show through.
         /// </summary>
         [MarshalAs(UnmanagedType.I1)] public bool OpaqueBackground;
+
+        /// <summary>
+        /// If true, the panel is a helper visual (e.g. the edit-mode HUD or
+        /// highlight frame) and is ignored by the VR controller laser
+        /// hit-test, so it can't be hovered/grabbed instead of a real panel.
+        /// </summary>
+        [MarshalAs(UnmanagedType.I1)] public bool NonInteractive;
     }
 
     /// <summary>

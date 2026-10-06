@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.IO.Pipes;
 using Donutz_VR_HUD.Shared;
 
@@ -141,7 +141,7 @@ namespace Donutz_VR_HUD.OpenXR
             }
             catch (TimeoutException)
             {
-                LastError = $"Timed out after {timeoutMs} ms – pipe \"{PipeName}\" was not found. " +
+                LastError = $"Timed out after {timeoutMs} ms â€“ pipe \"{PipeName}\" was not found. " +
                     "Either the native layer was not loaded into the VR application, or it has not started an OpenXR session yet.";
                 pipe.Dispose();
                 return false;
@@ -282,7 +282,7 @@ namespace Donutz_VR_HUD.OpenXR
             }
         }
 
-        public void SetPanelTransform(Guid panelId, bool enabled, float posX, float posY, float posZ, float rotX, float rotY, float rotZ, float widthMeters, float heightMeters, bool headLocked, bool opaqueBackground)
+        public void SetPanelTransform(Guid panelId, bool enabled, float posX, float posY, float posZ, float rotX, float rotY, float rotZ, float widthMeters, float heightMeters, bool headLocked, bool opaqueBackground, bool nonInteractive = false)
         {
             var message = new SetPanelTransformMessage
             {
@@ -298,6 +298,7 @@ namespace Donutz_VR_HUD.OpenXR
                 HeightMeters = heightMeters,
                 HeadLocked = headLocked,
                 OpaqueBackground = opaqueBackground,
+                NonInteractive = nonInteractive,
             };
             Send(OverlayIpcMessageType.SetPanelTransform, StructToBytes(message));
         }

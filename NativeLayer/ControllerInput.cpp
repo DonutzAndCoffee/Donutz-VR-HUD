@@ -65,7 +65,7 @@ namespace ControllerInput
 		constexpr VisualColor kColorHover{ 1.0f, 0.85f, 0.1f, 0.75f };  // yellow: panel within grab range.
 		constexpr VisualColor kColorGrabbed{ 0.15f, 1.0f, 0.25f, 0.9f }; // green: panel currently grabbed.
 		constexpr VisualColor kColorGrabHighlight{ 1.0f, 0.85f, 0.1f, 0.9f }; // yellow frame around the grabbed panel.
-		constexpr float kLaserLengthMeters = 1.5f;
+		constexpr float kLaserLengthMeters = 5.0f;
 
 		XrPath MakePath(const char* pathString)
 		{
@@ -198,7 +198,7 @@ namespace ControllerInput
 		// laser beam can actually reach it - a longer range here than what
 		// is drawn made panels light up well before the beam visually
 		// touched them.
-		constexpr float kMaxAimDistanceMeters = 1.5f;
+		constexpr float kMaxAimDistanceMeters = kLaserLengthMeters;
 
 		// True laser/ray hit-test against a panel's rectangular surface.
 		// XrCompositionLayerQuad convention: the quad lies in the local
@@ -421,16 +421,45 @@ namespace ControllerInput
 					bool found = false;
 					IpcServer::PanelState bestPanel{};
 
+					const bool logPress = triggerState.changedSinceLastSync == XR_TRUE;
+					auto fmt3 = [](const XrVector3f& v)
+					{
+						return "(" + std::to_string(v.x) + ", " + std::to_string(v.y) + ", " + std::to_string(v.z) + ")";
+					};
+					auto idPrefix = [](const IpcServer::PanelIdBytes& id)
+					{
+						char buf[9];
+						snprintf(buf, sizeof(buf), "%02x%02x%02x%02x", id.bytes[3], id.bytes[2], id.bytes[1], id.bytes[0]);
+						return std::string(buf);
+					};
+					if (logPress)
+					{
+						Logging::Log(std::string("Grab test (") + (hand == Hand::Left ? "left" : "right") + "): aimValid=" + std::to_string(aimPoseValid)
+							+ " origin=" + fmt3(aimLocation.pose.position) + " dir=" + fmt3(aimForward)
+							+ " grip=" + fmt3(handLocation.pose.position) + " panels=" + std::to_string(panels.size()));
+					}
+
 					for (const auto& panel : panels)
 					{
-						if (!panel.enabled || panel.headLocked)
+						if (!panel.enabled || panel.headLocked || panel.nonInteractive)
 						{
+							if (logPress)
+							{
+								Logging::Log("  panel " + idPrefix(panel.panelId) + " skipped (enabled=" + std::to_string(panel.enabled)
+									+ ", headLocked=" + std::to_string(panel.headLocked) + ", nonInteractive=" + std::to_string(panel.nonInteractive) + ")");
+							}
 							continue;
 						}
 						XrPosef panelWorld = PanelWorldPose(panel);
 						float hitDistance = 0.0f;
-						if (RayHitsPanel(aimLocation.pose.position, aimForward, panelWorld, panel.widthMeters, panel.heightMeters, &hitDistance)
-							&& hitDistance < bestDistance)
+						const bool hit = RayHitsPanel(aimLocation.pose.position, aimForward, panelWorld, panel.widthMeters, panel.heightMeters, &hitDistance);
+						if (logPress)
+						{
+							Logging::Log("  panel " + idPrefix(panel.panelId) + " world=" + fmt3(panelWorld.position)
+								+ " size=" + std::to_string(panel.widthMeters) + "x" + std::to_string(panel.heightMeters)
+								+ " hit=" + std::to_string(hit) + (hit ? " t=" + std::to_string(hitDistance) : std::string()));
+						}
+						if (hit && hitDistance < bestDistance)
 						{
 							bestDistance = hitDistance;
 							bestPanel = panel;
@@ -440,6 +469,10 @@ namespace ControllerInput
 
 					if (found)
 					{
+						if (logPress)
+						{
+							Logging::Log("  -> grabbed panel " + idPrefix(bestPanel.panelId) + " t=" + std::to_string(bestDistance));
+						}
 						XrPosef panelWorld = PanelWorldPose(bestPanel);
 						const XrQuaternionf handInverse = QuatConjugate(handLocation.pose.orientation);
 						grab.active = true;
@@ -571,7 +604,7 @@ namespace ControllerInput
 
 					for (const auto& panel : panels)
 					{
-						if (!panel.enabled || panel.headLocked)
+						if (!panel.enabled || panel.headLocked || panel.nonInteractive)
 						{
 							continue;
 						}

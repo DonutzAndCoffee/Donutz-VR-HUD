@@ -63,6 +63,9 @@ namespace IpcServer
 		// alpha), so transparent source pixels render as solid black
 		// instead of blending with the scene behind the panel.
 		uint8_t opaqueBackground;
+		// NonInteractive: true = helper visual (edit-mode HUD/highlight
+		// frame), excluded from controller laser hit-tests.
+		uint8_t nonInteractive;
 	};
 
 	struct UpdateFramePayload
@@ -131,6 +134,7 @@ namespace IpcServer
 		float widthMeters = 0.4f;
 		float heightMeters = 0.3f;
 		bool headLocked = false;
+		bool nonInteractive = false;
 		bool opaqueBackground = false;
 		std::wstring sharedHandleName;
 		int32_t frameWidth = 0;

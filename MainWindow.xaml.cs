@@ -1027,6 +1027,16 @@ namespace Donutz_VR_HUD
                 OverlayIpcClient.AppendAppLogEntry($"New game session detected: {detectedGameName}");
             }
 
+            // The sim was closed, or the native layer's pipe broke (e.g. a
+            // new iRacing session/process): drop the stale client so the
+            // overlay is reconnected automatically below instead of
+            // requiring the user to toggle it manually.
+            if (_ipcClient is not null && ((_wasSimRunning && !isSimRunning) || !_ipcClient.IsConnected))
+            {
+                OverlayIpcClient.AppendAppLogEntry("Overlay connection lost or sim closed; resetting overlay for automatic reconnect.");
+                StopOverlay();
+            }
+
             if (_ipcClient is null && Panels.Count > 0 && isSimRunning)
             {
                 await StartOverlayAsync();
@@ -1278,7 +1288,7 @@ namespace Donutz_VR_HUD
                 posX: 0f, posY: -0.15f, posZ: -0.5f,
                 rotX: 0f, rotY: 0f, rotZ: 0f,
                 widthMeters: 0.3f, heightMeters: 0.15f,
-                headLocked: true, opaqueBackground: true);
+                headLocked: true, opaqueBackground: true, nonInteractive: true);
         }
 
         private void StopEditModeVrHud()
@@ -1331,7 +1341,7 @@ namespace Donutz_VR_HUD
                 rotX: panel.PitchDeg, rotY: panel.YawDeg, rotZ: panel.RollDeg,
                 widthMeters: panel.WidthMeters * margin,
                 heightMeters: panel.HeightMeters * margin,
-                headLocked: panel.HeadLocked, opaqueBackground: false);
+                headLocked: panel.HeadLocked, opaqueBackground: false, nonInteractive: true);
         }
 
         private void MainWindow_PreviewKeyDown(object sender, KeyEventArgs e)
@@ -2028,7 +2038,34 @@ namespace Donutz_VR_HUD
                 panel.PitchDeg = rotDegX;
                 panel.YawDeg = rotDegY;
                 panel.RollDeg = rotDegZ;
+
+                // The active profile is re-applied on the next session
+                // (auto-load), so persist the moved panel there as well;
+                // otherwise the global settings get overwritten by the
+                // profile's stale panel positions.
+                SaveActiveProfilePanels();
             });
+        }
+
+        /// <summary>
+        /// Writes the current panel configuration into the currently active
+        /// (last loaded) profile, keeping its name/game/car metadata.
+        /// </summary>
+        private void SaveActiveProfilePanels()
+        {
+            if (_isApplyingProfile || _lastAutoLoadedProfileId is null)
+            {
+                return;
+            }
+
+            var target = Profiles.FirstOrDefault(p => p.Id == _lastAutoLoadedProfileId);
+            if (target is null)
+            {
+                return;
+            }
+
+            target.Panels = Panels.Select(PanelSettings.FromPanel).ToList();
+            ProfileStore.Save(Profiles.ToList());
         }
 
         /// <summary>
