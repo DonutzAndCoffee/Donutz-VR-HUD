@@ -49,11 +49,17 @@ The two components communicate via a local **named pipe IPC channel** (panel tra
 ## Installation (prebuilt release)
 
 1. Install the [.NET 10 Desktop Runtime (x64)](https://dotnet.microsoft.com/download/dotnet/10.0) if not already present.
-2. Download `DonutzVRHUD-v1.1.0-win-x64.zip` from the [Releases](https://github.com/DonutzAndCoffee/Donutz-VR-HUD/releases) page and extract it to a permanent folder (the OpenXR layer is registered from this location).
+`DonutzVRHUD-v1.2.0-win-x64.zip`
 3. Start `Donutz VR HUD.exe` and use the layer registration button in the app to register the OpenXR API layer (requires administrator rights).
 4. Start your OpenXR sim (e.g. iRacing) in VR.
 
 ## Changelog
+
+### v1.2.0
+- Added native helmet visor rendering (procedural visor drawn by the OpenXR layer as a projection layer).
+- Added visor controls, presets and helmet library persistence in the app.
+- Cycle visors with the VR controller thumbstick in edit mode.
+- Updated edit-mode labels and localization.
 
 ### v1.1.0
 - Fixed overlay reconnect after restarting the app or the game, and panel interactivity after reconnect.
