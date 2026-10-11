@@ -34,6 +34,10 @@ namespace IpcServer
 		// by ControllerInput.cpp while this is true (see IsEditModeActive).
 		SetEditModeActive = 5,
 
+		// Client -> server: marks a panel as the procedural helmet visor
+		// (rendered by VisorRenderer.cpp instead of a textured quad).
+		SetVisorParams = 6,
+
 		// Server -> client.
 		PanelTransformUpdated = 100,
 		ControllerNudgeAction = 101,
@@ -92,6 +96,36 @@ namespace IpcServer
 		uint8_t active;
 	};
 
+	// Mirrors Shared/OverlayIpcContract.cs's SetVisorParamsMessage.
+	struct VisorParams
+	{
+		float sunR, sunG, sunB, sunOpacity;
+		float tintR, tintG, tintB, tintOpacity;
+		float stripHeight;
+		float stripCurve;
+		float scratches;
+		float dirt;
+		float bubbles;
+		uint32_t seed;
+		// Shell center offset from the head (meters, head frame) and size multiplier.
+		float offsetX, offsetY, offsetZ;
+		float size;
+		// Sun strip lettering (e.g. car brand), seen mirrored from the inside.
+		float textR, textG, textB, textOpacity;
+		float textSize;
+		float textBlur;
+		wchar_t text[64];
+		wchar_t fontName[32];
+		uint8_t bold;
+		uint8_t italic;
+	};
+
+	struct SetVisorParamsPayload
+	{
+		PanelIdBytes panelId;
+		VisorParams params;
+	};
+
 	// Server -> client: final transform after a VR controller grab ends
 	// (see ControllerInput.cpp), so the managed app can update its
 	// OverlayPanel model and persist the new position/rotation.
@@ -140,6 +174,10 @@ namespace IpcServer
 		int32_t frameWidth = 0;
 		int32_t frameHeight = 0;
 		bool hasFrame = false;
+		// Set via SetVisorParams: panel is rendered as the procedural
+		// helmet visor (VisorRenderer.cpp) instead of a quad.
+		bool isVisor = false;
+		VisorParams visor{};
 	};
 
 	// Starts the background pipe-server thread on first call; subsequent

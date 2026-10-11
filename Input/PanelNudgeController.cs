@@ -26,7 +26,9 @@ namespace Donutz_VR_HUD.Input
         PrevPanel,
         ToggleStepSize,
         ScaleUp,
-        ScaleDown
+        ScaleDown,
+        NextSetting,
+        PrevSetting
     }
 
     public sealed record NudgeBinding(Guid DeviceInstanceGuid, string DeviceName, int ButtonIndex);

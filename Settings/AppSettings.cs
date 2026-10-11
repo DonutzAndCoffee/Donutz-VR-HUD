@@ -32,8 +32,55 @@ namespace Donutz_VR_HUD.Settings
         /// <summary>If true, the panel's position/rotation/scale controls are locked in the UI to prevent accidental edits.</summary>
         public bool IsLocked { get; set; }
 
+        public string ImagePath { get; set; } = string.Empty;
+        public string VisorColor { get; set; } = "#1A1A26";
+        public float VisorOpacity { get; set; } = 0.65f;
+        public string VisorEndColor { get; set; } = "#1A1A26";
+        public float VisorEndOpacity { get; set; }
+        public float VisorCoverage { get; set; } = 0.35f;
+        public float VisorCurve { get; set; } = 0.18f;
+        public float VisorScratches { get; set; } = 0.3f;
+        public float VisorDirt { get; set; } = 0.25f;
+        public float VisorBubbles { get; set; } = 0.15f;
+        public int VisorSeed { get; set; } = 1;
+        public float VisorOffsetX { get; set; }
+        public float VisorOffsetY { get; set; }
+        public float VisorOffsetZ { get; set; }
+        public float VisorSize { get; set; } = 1f;
+        public string VisorText { get; set; } = string.Empty;
+        public string VisorTextColor { get; set; } = "#FFFFFF";
+        public float VisorTextOpacity { get; set; } = 0.85f;
+        public float VisorTextSize { get; set; } = 0.4f;
+        public float VisorTextBlur { get; set; } = 0.4f;
+        public string VisorTextFont { get; set; } = "Arial";
+        public bool VisorTextBold { get; set; } = true;
+        public bool VisorTextItalic { get; set; }
+
         public static PanelSettings FromPanel(OverlayPanel panel) => new()
         {
+            ImagePath = panel.ImagePath,
+            VisorColor = panel.VisorColor,
+            VisorOpacity = panel.VisorOpacity,
+            VisorEndColor = panel.VisorEndColor,
+            VisorEndOpacity = panel.VisorEndOpacity,
+            VisorCoverage = panel.VisorCoverage,
+            VisorCurve = panel.VisorCurve,
+            VisorScratches = panel.VisorScratches,
+            VisorDirt = panel.VisorDirt,
+            VisorBubbles = panel.VisorBubbles,
+            VisorSeed = panel.VisorSeed,
+            VisorOffsetX = panel.VisorOffsetX,
+            VisorOffsetY = panel.VisorOffsetY,
+            VisorOffsetZ = panel.VisorOffsetZ,
+            VisorSize = panel.VisorSize,
+            VisorText = panel.VisorText,
+            VisorTextColor = panel.VisorTextColor,
+            VisorTextOpacity = panel.VisorTextOpacity,
+            VisorTextSize = panel.VisorTextSize,
+            VisorTextBlur = panel.VisorTextBlur,
+            VisorTextFont = panel.VisorTextFont,
+            VisorTextBold = panel.VisorTextBold,
+            VisorTextItalic = panel.VisorTextItalic,
             Name = panel.Name,
             IsEnabled = panel.IsEnabled,
             SourceType = panel.SourceType,
@@ -73,7 +120,30 @@ namespace Donutz_VR_HUD.Settings
                 HeightMeters = HeightMeters,
                 HeadLocked = HeadLocked,
                 OpaqueBackground = OpaqueBackground,
-                IsLocked = IsLocked
+                IsLocked = IsLocked,
+                ImagePath = ImagePath ?? string.Empty,
+                VisorColor = VisorColor ?? "#1A1A26",
+                VisorOpacity = VisorOpacity,
+                VisorEndColor = VisorEndColor ?? "#1A1A26",
+                VisorEndOpacity = VisorEndOpacity,
+                VisorCoverage = VisorCoverage,
+                VisorCurve = VisorCurve,
+                VisorScratches = VisorScratches,
+                VisorDirt = VisorDirt,
+                VisorBubbles = VisorBubbles,
+                VisorSeed = VisorSeed,
+                VisorOffsetX = VisorOffsetX,
+                VisorOffsetY = VisorOffsetY,
+                VisorOffsetZ = VisorOffsetZ,
+                VisorSize = VisorSize > 0 ? VisorSize : 1f,
+                VisorText = VisorText ?? string.Empty,
+                VisorTextColor = VisorTextColor ?? "#FFFFFF",
+                VisorTextOpacity = VisorTextOpacity,
+                VisorTextSize = VisorTextSize,
+                VisorTextBlur = VisorTextBlur,
+                VisorTextFont = VisorTextFont ?? "Arial",
+                VisorTextBold = VisorTextBold,
+                VisorTextItalic = VisorTextItalic
             };
 
             return panel;
@@ -106,6 +176,9 @@ namespace Donutz_VR_HUD.Settings
 
         /// <summary>All "VR Reset" button bindings (multiple wheel/controller buttons can trigger a recenter).</summary>
         public List<ResetBindingSettings> ResetBindings { get; set; } = new();
+
+        /// <summary>Wheel/button box buttons that open/close (toggle) the helmet visor.</summary>
+        public List<ResetBindingSettings> VisorToggleBindings { get; set; } = new();
 
         /// <summary>Bindings for controller-driven panel fine-tuning ("nudge"), keyed by <see cref="Models.PanelSourceType"/>-agnostic action name.</summary>
         public Dictionary<string, NudgeBindingSettings> NudgeBindings { get; set; } = new();

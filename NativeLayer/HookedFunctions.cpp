@@ -2,6 +2,7 @@
 #include "ControllerInput.h"
 #include "IpcServer.h"
 #include "Logging.h"
+#include "VisorRenderer.h"
 
 #include <d3d11.h>
 #include <d3d11_1.h>
@@ -48,6 +49,7 @@ namespace
         XrSwapchain swapchain = XR_NULL_HANDLE;
         int32_t width = 0;
         int32_t height = 0;
+        int64_t format = 0;
         std::vector<ID3D11Texture2D*> images;
     };
 
@@ -325,6 +327,7 @@ namespace
         panel.swapchain = swapchain;
         panel.width = width;
         panel.height = height;
+        panel.format = chosenFormat;
         panel.images.reserve(images.size());
         for (const auto& image : images)
         {
@@ -695,6 +698,7 @@ namespace
                 g_viewSpace = XR_NULL_HANDLE;
                 localSpaceToDestroy = g_localSpace;
                 g_localSpace = XR_NULL_HANDLE;
+                VisorRenderer::Reset();
             }
         }
 
@@ -809,7 +813,7 @@ namespace
 
         for (const auto& panel : panels)
         {
-            if (!panel.enabled || !panel.hasFrame || panel.frameWidth <= 0 || panel.frameHeight <= 0)
+            if (panel.isVisor || !panel.enabled || !panel.hasFrame || panel.frameWidth <= 0 || panel.frameHeight <= 0)
             {
                 continue;
             }
@@ -1018,7 +1022,139 @@ namespace
             }
         }
 
-        combinedLayers.reserve(frameEndInfo->layerCount + quads.size());
+        // Procedural helmet visor (see VisorRenderer.h): rendered per eye
+        // with the app's own projection views, then submitted on top of
+        // everything as an extra projection layer, since a real visor is
+        // the closest thing to the driver's eyes.
+        constexpr uint32_t kMaxVisorViews = 4;
+        XrCompositionLayerProjection visorLayer{ XR_TYPE_COMPOSITION_LAYER_PROJECTION };
+        XrCompositionLayerProjectionView visorViews[kMaxVisorViews]{};
+        bool hasVisorLayer = false;
+        {
+            const IpcServer::PanelState* visorPanel = nullptr;
+            for (const auto& panel : panels)
+            {
+                if (panel.isVisor && panel.enabled)
+                {
+                    visorPanel = &panel;
+                    break;
+                }
+            }
+
+            const XrCompositionLayerProjection* appProjection = nullptr;
+            for (uint32_t i = 0; visorPanel != nullptr && i < frameEndInfo->layerCount; ++i)
+            {
+                const auto* layer = frameEndInfo->layers[i];
+                if (layer != nullptr && layer->type == XR_TYPE_COMPOSITION_LAYER_PROJECTION)
+                {
+                    appProjection = reinterpret_cast<const XrCompositionLayerProjection*>(layer);
+                    break;
+                }
+            }
+
+            if (visorPanel != nullptr && (s_frameLogCounter % 300) == 1)
+            {
+                Logging::Log("Hook_xrEndFrame: visor panel present (appProjection=" +
+                    std::to_string(appProjection != nullptr) +
+                    ", viewCount=" + std::to_string(appProjection != nullptr ? appProjection->viewCount : 0) +
+                    ", device=" + std::to_string(g_d3dDevice != nullptr) +
+                    ", sunOpacity=" + std::to_string(visorPanel->visor.sunOpacity) +
+                    ", tintOpacity=" + std::to_string(visorPanel->visor.tintOpacity) + ").");
+            }
+
+            if (visorPanel != nullptr && appProjection != nullptr && appProjection->viewCount >= 2 &&
+                appProjection->viewCount <= kMaxVisorViews && g_d3dDevice != nullptr && g_d3dContext != nullptr)
+            {
+                const auto& left = appProjection->views[0].pose;
+                const auto& right = appProjection->views[1].pose;
+
+                // Head = midpoint between the eyes, orientation halfway
+                // between both eyes (handles canted displays).
+                XrPosef headPose{};
+                headPose.position = {
+                    (left.position.x + right.position.x) * 0.5f,
+                    (left.position.y + right.position.y) * 0.5f,
+                    (left.position.z + right.position.z) * 0.5f };
+                XrQuaternionf r = right.orientation;
+                const XrQuaternionf& l = left.orientation;
+                if (l.x * r.x + l.y * r.y + l.z * r.z + l.w * r.w < 0.0f)
+                {
+                    r = { -r.x, -r.y, -r.z, -r.w };
+                }
+                XrQuaternionf mid{ l.x + r.x, l.y + r.y, l.z + r.z, l.w + r.w };
+                const float len = sqrtf(mid.x * mid.x + mid.y * mid.y + mid.z * mid.z + mid.w * mid.w);
+                headPose.orientation = len > 0.0f
+                    ? XrQuaternionf{ mid.x / len, mid.y / len, mid.z / len, mid.w / len }
+                    : l;
+
+                bool allViewsOk = true;
+                for (uint32_t v = 0; v < appProjection->viewCount && allViewsOk; ++v)
+                {
+                    const auto& appView = appProjection->views[v];
+
+                    // Half the app's eye resolution is plenty for the
+                    // mostly smooth visor and keeps the cost negligible.
+                    const int32_t w = std::clamp(appView.subImage.imageRect.extent.width / 2, 64, 2048);
+                    const int32_t h = std::clamp(appView.subImage.imageRect.extent.height / 2, 64, 2048);
+
+                    const std::string key = "visor_view_" + std::to_string(v);
+                    PanelSwapchain* swapchain = EnsurePanelSwapchain(session, key, w, h);
+                    if (swapchain == nullptr || swapchain->images.empty())
+                    {
+                        allViewsOk = false;
+                        break;
+                    }
+
+                    uint32_t imageIndex = 0;
+                    if (XR_FAILED(acquireImage(swapchain->swapchain, nullptr, &imageIndex)))
+                    {
+                        allViewsOk = false;
+                        break;
+                    }
+
+                    XrSwapchainImageWaitInfo waitInfo{ XR_TYPE_SWAPCHAIN_IMAGE_WAIT_INFO };
+                    waitInfo.timeout = XR_INFINITE_DURATION;
+                    if (XR_SUCCEEDED(waitImage(swapchain->swapchain, &waitInfo)))
+                    {
+                        allViewsOk = VisorRenderer::RenderEye(
+                            g_d3dDevice, g_d3dContext, swapchain->images[imageIndex],
+                            static_cast<DXGI_FORMAT>(swapchain->format),
+                            static_cast<uint32_t>(w), static_cast<uint32_t>(h),
+                            visorPanel->visor, headPose, appView.pose, appView.fov);
+                    }
+                    else
+                    {
+                        allViewsOk = false;
+                    }
+
+                    XrSwapchainImageReleaseInfo releaseInfo{ XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO };
+                    releaseImage(swapchain->swapchain, &releaseInfo);
+
+                    visorViews[v] = XrCompositionLayerProjectionView{ XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW };
+                    visorViews[v].pose = appView.pose;
+                    visorViews[v].fov = appView.fov;
+                    visorViews[v].subImage.swapchain = swapchain->swapchain;
+                    visorViews[v].subImage.imageRect.offset = { 0, 0 };
+                    visorViews[v].subImage.imageRect.extent = { w, h };
+                    visorViews[v].subImage.imageArrayIndex = 0;
+                }
+
+                if (allViewsOk)
+                {
+                    visorLayer.layerFlags = XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT;
+                    visorLayer.space = appProjection->space;
+                    visorLayer.viewCount = appProjection->viewCount;
+                    visorLayer.views = visorViews;
+                    hasVisorLayer = true;
+                }
+                else if ((s_frameLogCounter % 90) == 1)
+                {
+                    Logging::Log("Hook_xrEndFrame: visor rendering failed for at least one view, skipping visor layer.");
+                }
+            }
+        }
+
+        combinedLayers.reserve(frameEndInfo->layerCount + quads.size() + 1);
         for (uint32_t i = 0; i < frameEndInfo->layerCount; ++i)
         {
             combinedLayers.push_back(frameEndInfo->layers[i]);
@@ -1026,6 +1162,10 @@ namespace
         for (const auto& quad : quads)
         {
             combinedLayers.push_back(reinterpret_cast<const XrCompositionLayerBaseHeader*>(&quad));
+        }
+        if (hasVisorLayer)
+        {
+            combinedLayers.push_back(reinterpret_cast<const XrCompositionLayerBaseHeader*>(&visorLayer));
         }
 
         XrFrameEndInfo combinedFrameEndInfo = *frameEndInfo;

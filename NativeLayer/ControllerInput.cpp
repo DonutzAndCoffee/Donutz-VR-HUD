@@ -525,8 +525,10 @@ namespace ControllerInput
 			// or down instead of nudging its position.
 			if (thumbstickState.isActive)
 			{
+				const float x = thumbstickState.currentState.x;
 				const float y = thumbstickState.currentState.y;
-				const float magnitude = fabsf(y);
+				const bool horizontal = fabsf(x) > fabsf(y);
+				const float magnitude = horizontal ? fabsf(x) : fabsf(y);
 				if (magnitude < kThumbstickReleaseThreshold)
 				{
 					g_thumbstickArmed[handIndex] = true;
@@ -535,7 +537,11 @@ namespace ControllerInput
 				{
 					g_thumbstickArmed[handIndex] = false;
 
-					const NudgeAction action = y > 0 ? NudgeAction::ScaleUp : NudgeAction::ScaleDown;
+					// Left/right cycles the setting edited by up/down (used
+					// by the managed app e.g. for the helmet visor).
+					const NudgeAction action = horizontal
+						? (x > 0 ? NudgeAction::NextSetting : NudgeAction::PrevSetting)
+						: (y > 0 ? NudgeAction::ScaleUp : NudgeAction::ScaleDown);
 					g_pendingNudgeActions.push_back(static_cast<uint8_t>(action));
 				}
 			}

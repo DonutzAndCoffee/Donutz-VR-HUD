@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
 using System.Reflection;
@@ -25,7 +25,26 @@ namespace Donutz_VR_HUD
     {
         Move,
         Rotate,
-        Scale
+        Scale,
+        // Helmet visor only: A/D picks a look setting, W/S changes it.
+        Settings
+    }
+
+    /// <summary>Helmet visor setting changed by the VR thumbstick up/down (cycled with left/right).</summary>
+    public enum VisorVrSetting
+    {
+        Size,
+        OffsetY,
+        OffsetZ,
+        OffsetX,
+        SunOpacity,
+        TintOpacity,
+        StripHeight,
+        StripCurve,
+        Scratches,
+        Dirt,
+        Bubbles,
+        Seed
     }
 
     /// <summary>
@@ -37,6 +56,7 @@ namespace Donutz_VR_HUD
 
         private readonly Dictionary<Guid, IOverlaySource> _panelSources = new();
         private readonly ResetButtonBinding _resetButtonBinding = new();
+        private readonly ResetButtonBinding _visorToggleBinding = new();
         private readonly PanelNudgeController _panelNudgeController = new();
         private readonly DispatcherTimer _nativeLogTimer = new() { Interval = TimeSpan.FromSeconds(1) };
         private readonly DispatcherTimer _autoProfileTimer = new() { Interval = TimeSpan.FromSeconds(3) };
@@ -78,6 +98,7 @@ namespace Donutz_VR_HUD
         private readonly HashSet<Key> _editModePressedKeys = new();
         private bool _isEditModeActive;
         private PanelEditAxisMode _editAxisMode = PanelEditAxisMode.Move;
+        private VisorVrSetting _visorVrSetting = VisorVrSetting.Size;
 
         // The keyboard edit-mode HUD is also shown as an actual head-locked
         // VR overlay panel (not just the desktop window's HUD border), so
@@ -95,11 +116,13 @@ namespace Donutz_VR_HUD
         private Sources.PanelHighlightSource? _editModeHighlightSource;
 
         public ObservableCollection<OverlayPanel> Panels { get; } = new();
+        public ObservableCollection<HelmetPreset> HelmetLibrary { get; } = new(HelmetStore.Load());
         public ObservableCollection<CapturableWindow> AvailableWindows { get; } = new();
         public ObservableCollection<Profile> Profiles { get; } = new();
         public ObservableCollection<string> RunningProcessNames { get; } = new();
         public ObservableCollection<NudgeActionRow> NudgeActionRows { get; } = new();
         public ObservableCollection<ResetBindingRow> ResetBindingRows { get; } = new();
+        public ObservableCollection<ResetBindingRow> VisorToggleBindingRows { get; } = new();
 
         public MainWindow()
         {
@@ -129,6 +152,13 @@ namespace Donutz_VR_HUD
                 RefreshResetBindingRows();
                 LearnResetButton.IsEnabled = true;
                 LearnResetButton.Content = "Assign button…";
+                SaveSettings();
+            });
+            _visorToggleBinding.ButtonPressed += () => Dispatcher.Invoke(ToggleVisor);
+            _visorToggleBinding.Learned += (device, buttonIndex) => Dispatcher.Invoke(() =>
+            {
+                RefreshVisorToggleBindingRows();
+                LearnVisorToggleButton.Content = Localization.T("Global.VrReset.Learn");
                 SaveSettings();
             });
 
@@ -427,7 +457,7 @@ namespace Donutz_VR_HUD
                 }
                 else
                 {
-                    foreach (var panelSettings in settings.Panels.Take(MaxPanels))
+                    foreach (var panelSettings in OneVisorOnly(settings.Panels).Take(MaxPanels))
                     {
                         var panel = panelSettings.ToPanel();
                         panel.PropertyChanged += Panel_PropertyChanged;
@@ -446,6 +476,13 @@ namespace Donutz_VR_HUD
                     _resetButtonBinding.AddBinding(resetBinding.DeviceInstanceGuid, resetBinding.ButtonIndex, resetBinding.DeviceName);
                 }
                 RefreshResetBindingRows();
+
+                _visorToggleBinding.ClearBindings();
+                foreach (var b in (settings.VisorToggleBindings ?? new()).Where(b => b.ButtonIndex >= 0))
+                {
+                    _visorToggleBinding.AddBinding(b.DeviceInstanceGuid, b.ButtonIndex, b.DeviceName);
+                }
+                RefreshVisorToggleBindingRows();
 
                 foreach (var (actionName, binding) in settings.NudgeBindings)
                 {
@@ -468,6 +505,82 @@ namespace Donutz_VR_HUD
             }
         }
 
+        /// <summary>Drops every visor panel after the first one (one helmet per profile).</summary>
+        private static IEnumerable<PanelSettings> OneVisorOnly(IEnumerable<PanelSettings> panels)
+        {
+            var visorSeen = false;
+            foreach (var p in panels)
+            {
+                if (p.SourceType == PanelSourceType.Visor)
+                {
+                    if (visorSeen)
+                    {
+                        continue;
+                    }
+                    visorSeen = true;
+                }
+                yield return p;
+            }
+        }
+
+        private void HelmetSaveButton_Click(object sender, RoutedEventArgs e)
+        {
+            if ((sender as FrameworkElement)?.Tag is not OverlayPanel panel)
+            {
+                return;
+            }
+
+            var name = (HelmetNameFromSender(sender) ?? string.Empty).Trim();
+            if (name.Length == 0)
+            {
+                name = string.IsNullOrWhiteSpace(panel.VisorText) ? panel.Name : panel.VisorText;
+            }
+
+            var preset = new HelmetPreset { Name = name, Visor = PanelSettings.FromPanel(panel) };
+            var existing = HelmetLibrary.FirstOrDefault(h => string.Equals(h.Name, name, StringComparison.OrdinalIgnoreCase));
+            if (existing is not null)
+            {
+                HelmetLibrary[HelmetLibrary.IndexOf(existing)] = preset;
+            }
+            else
+            {
+                HelmetLibrary.Add(preset);
+            }
+            HelmetStore.Save(HelmetLibrary);
+            StatusText.Text = string.Format(Localization.Instance["Helmet.Saved"], name);
+        }
+
+        private void HelmetLoadButton_Click(object sender, RoutedEventArgs e)
+        {
+            if ((sender as FrameworkElement)?.Tag is not OverlayPanel panel || HelmetComboFromSender(sender)?.SelectedItem is not HelmetPreset preset)
+            {
+                return;
+            }
+
+            HelmetStore.ApplyTo(preset.Visor, panel);
+            StatusText.Text = string.Format(Localization.Instance["Helmet.Loaded"], preset.Name);
+        }
+
+        private void HelmetDeleteButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (HelmetComboFromSender(sender)?.SelectedItem is not HelmetPreset preset)
+            {
+                return;
+            }
+
+            HelmetLibrary.Remove(preset);
+            HelmetStore.Save(HelmetLibrary);
+        }
+
+        private static ComboBox? HelmetComboFromSender(object sender)
+            => ((sender as FrameworkElement)?.Parent as Panel)?.Children.OfType<ComboBox>().FirstOrDefault();
+
+        private static string? HelmetNameFromSender(object sender)
+        {
+            var combo = HelmetComboFromSender(sender);
+            return combo?.Text;
+        }
+
         private void SaveSettings()
         {
             if (_isLoadingSettings)
@@ -484,6 +597,15 @@ namespace Donutz_VR_HUD
             };
 
             settings.ResetBindings = _resetButtonBinding.Bindings
+                .Select(b => new ResetBindingSettings
+                {
+                    DeviceInstanceGuid = b.DeviceInstanceGuid,
+                    DeviceName = b.DeviceName ?? string.Empty,
+                    ButtonIndex = b.ButtonIndex
+                })
+                .ToList();
+
+            settings.VisorToggleBindings = _visorToggleBinding.Bindings
                 .Select(b => new ResetBindingSettings
                 {
                     DeviceInstanceGuid = b.DeviceInstanceGuid,
@@ -898,7 +1020,7 @@ namespace Donutz_VR_HUD
                 }
                 Panels.Clear();
 
-                foreach (var panelSettings in profile.Panels.Take(MaxPanels))
+                foreach (var panelSettings in OneVisorOnly(profile.Panels).Take(MaxPanels))
                 {
                     var panel = panelSettings.ToPanel();
                     panel.PropertyChanged += Panel_PropertyChanged;
@@ -1315,7 +1437,7 @@ namespace Donutz_VR_HUD
                 return;
             }
 
-            if (panel is null)
+            if (panel is null || panel.SourceType == PanelSourceType.Visor)
             {
                 _ipcClient.RemovePanel(EditModeHighlightPanelId);
                 return;
@@ -1367,12 +1489,33 @@ namespace Donutz_VR_HUD
 
             if (e.Key == Key.Tab)
             {
-                _editAxisMode = _editAxisMode switch
+                var isVisor = ActiveNudgePanelComboBox.SelectedItem is OverlayPanel { SourceType: PanelSourceType.Visor };
+                _editAxisMode = (_editAxisMode, isVisor) switch
                 {
-                    PanelEditAxisMode.Move => PanelEditAxisMode.Rotate,
-                    PanelEditAxisMode.Rotate => PanelEditAxisMode.Scale,
+                    (PanelEditAxisMode.Move, true) => PanelEditAxisMode.Scale,
+                    (PanelEditAxisMode.Scale, true) => PanelEditAxisMode.Settings,
+                    (PanelEditAxisMode.Move, false) => PanelEditAxisMode.Rotate,
+                    (PanelEditAxisMode.Rotate, false) => PanelEditAxisMode.Scale,
                     _ => PanelEditAxisMode.Move
                 };
+                UpdateEditModeHud();
+                e.Handled = true;
+                return;
+            }
+
+            if (_editAxisMode == PanelEditAxisMode.Settings &&
+                ActiveNudgePanelComboBox.SelectedItem is OverlayPanel { SourceType: PanelSourceType.Visor, IsLocked: false } visorPanel &&
+                e.Key is Key.A or Key.D or Key.W or Key.S)
+            {
+                // Key auto-repeat gives the step rate here.
+                if (e.Key is Key.A or Key.D)
+                {
+                    CycleVisorSetting(e.Key == Key.D ? 1 : -1);
+                }
+                else
+                {
+                    ApplyVisorVrSetting(visorPanel, e.Key == Key.W ? 1 : -1);
+                }
                 UpdateEditModeHud();
                 e.Handled = true;
                 return;
@@ -1472,6 +1615,35 @@ namespace Donutz_VR_HUD
 
             var moved = false;
 
+            if (panel.SourceType != PanelSourceType.Visor && _editAxisMode == PanelEditAxisMode.Settings)
+            {
+                _editAxisMode = PanelEditAxisMode.Move;
+            }
+
+            if (panel.SourceType == PanelSourceType.Visor)
+            {
+                if (_editAxisMode == PanelEditAxisMode.Settings)
+                {
+                    // Handled per key press in MainWindow_PreviewKeyDown.
+                }
+                else if (_editAxisMode == PanelEditAxisMode.Scale)
+                {
+                    if (_editModePressedKeys.Contains(Key.W) || _editModePressedKeys.Contains(Key.D)) panel.VisorSize = Math.Min(3f, panel.VisorSize + positionStep);
+                    if (_editModePressedKeys.Contains(Key.S) || _editModePressedKeys.Contains(Key.A)) panel.VisorSize = Math.Max(0.3f, panel.VisorSize - positionStep);
+                }
+                else
+                {
+                    if (_editModePressedKeys.Contains(Key.W)) panel.VisorOffsetZ = Math.Max(-0.3f, panel.VisorOffsetZ - positionStep);
+                    if (_editModePressedKeys.Contains(Key.S)) panel.VisorOffsetZ = Math.Min(0.3f, panel.VisorOffsetZ + positionStep);
+                    if (_editModePressedKeys.Contains(Key.A)) panel.VisorOffsetX = Math.Max(-0.3f, panel.VisorOffsetX - positionStep);
+                    if (_editModePressedKeys.Contains(Key.D)) panel.VisorOffsetX = Math.Min(0.3f, panel.VisorOffsetX + positionStep);
+                    if (_editModePressedKeys.Contains(Key.E)) panel.VisorOffsetY = Math.Min(0.3f, panel.VisorOffsetY + positionStep);
+                    if (_editModePressedKeys.Contains(Key.Q)) panel.VisorOffsetY = Math.Max(-0.3f, panel.VisorOffsetY - positionStep);
+                }
+                UpdateEditModeHud(isFine, isCoarse);
+                return;
+            }
+
             if (_editAxisMode == PanelEditAxisMode.Move)
             {
                 if (_editModePressedKeys.Contains(Key.W)) { panel.PositionZ -= positionStep; moved = true; }
@@ -1516,12 +1688,7 @@ namespace Donutz_VR_HUD
                 ? Localization.T("EditMode.NoPanelSelected")
                 : panel.IsLocked ? $"{panel.Name} ({Localization.T("EditMode.LockedSuffix")})" : panel.Name;
 
-            EditModeHudModeText.Text = _editAxisMode switch
-            {
-                PanelEditAxisMode.Move => Localization.T("EditMode.Mode.Move"),
-                PanelEditAxisMode.Rotate => Localization.T("EditMode.Mode.Rotate"),
-                _ => Localization.T("EditMode.Mode.Scale")
-            };
+            EditModeHudModeText.Text = EditModeText();
             EditModeHudSpeedText.Text = isFine ? Localization.T("EditMode.Speed.Fine") : isCoarse ? Localization.T("EditMode.Speed.Coarse") : Localization.T("EditMode.Speed.Normal");
 
             EditModeHudValuesText.Text = panel is null
@@ -1537,15 +1704,15 @@ namespace Donutz_VR_HUD
         /// <summary>Builds the text shown on the in-headset edit-mode HUD panel.</summary>
         private string BuildEditModeVrHudText(OverlayPanel? panel, bool isFine, bool isCoarse)
         {
+            if (panel is { SourceType: PanelSourceType.Visor })
+            {
+                return BuildVisorVrHudText(panel, isFine, isCoarse);
+            }
+
             var panelName = panel is null
                 ? Localization.T("EditMode.NoPanelSelected")
                 : panel.IsLocked ? $"{panel.Name} ({Localization.T("EditMode.LockedSuffix")})" : panel.Name;
-            var mode = _editAxisMode switch
-            {
-                PanelEditAxisMode.Move => Localization.T("EditMode.Mode.Move"),
-                PanelEditAxisMode.Rotate => Localization.T("EditMode.Mode.Rotate"),
-                _ => Localization.T("EditMode.Mode.Scale")
-            };
+            var mode = EditModeText();
             var speed = isFine ? Localization.T("EditMode.Speed.Fine") : isCoarse ? Localization.T("EditMode.Speed.Coarse") : Localization.T("EditMode.Speed.Normal");
             var values = panel is null
                 ? string.Empty
@@ -1562,57 +1729,144 @@ namespace Donutz_VR_HUD
 
         #endregion
 
-        /// <summary>
-        /// Gives a (still effectively default) panel a sensible starting
-        /// transform for the Visor source: small enough and far enough back
-        /// that the whole curved band fits in view, and head-locked so it
-        /// behaves like a real helmet visor (always in the same spot
-        /// relative to the headset) instead of staying fixed in the world.
-        /// Skipped if the panel already has a custom transform, so this
-        /// doesn't clobber placement the user already fine-tuned.
-        /// </summary>
-        private static void ApplyDefaultVisorPlacement(OverlayPanel panel)
+        private void ApplyVisorVrSetting(OverlayPanel panel, int direction)
         {
-            const float defaultWidth = 0.4f;
-            const float defaultHeight = 0.3f;
-            const float defaultPositionZ = -1.0f;
-
-            var looksUntouched =
-                panel.PositionX == 0f && panel.PositionY == 0f && panel.PositionZ == defaultPositionZ &&
-                panel.PitchDeg == 0f && panel.YawDeg == 0f && panel.RollDeg == 0f &&
-                panel.WidthMeters == defaultWidth && panel.HeightMeters == defaultHeight &&
-                !panel.HeadLocked;
-
-            if (!looksUntouched)
+            var fine = _nudgeStepIndex == 0;
+            var coarse = _nudgeStepIndex == 2;
+            var unit = fine ? 0.01f : coarse ? 0.1f : 0.05f;
+            var offset = (fine ? 0.002f : coarse ? 0.02f : 0.01f) * direction;
+            var amount = unit * direction;
+            switch (_visorVrSetting)
             {
-                return;
+                case VisorVrSetting.Size: panel.VisorSize = Math.Clamp(panel.VisorSize + amount, 0.3f, 3f); break;
+                case VisorVrSetting.OffsetX: panel.VisorOffsetX = Math.Clamp(panel.VisorOffsetX + offset, -0.3f, 0.3f); break;
+                case VisorVrSetting.OffsetY: panel.VisorOffsetY = Math.Clamp(panel.VisorOffsetY + offset, -0.3f, 0.3f); break;
+                case VisorVrSetting.OffsetZ: panel.VisorOffsetZ = Math.Clamp(panel.VisorOffsetZ - offset, -0.3f, 0.3f); break;
+                case VisorVrSetting.SunOpacity: panel.VisorOpacity = Math.Clamp(panel.VisorOpacity + amount, 0f, 1f); break;
+                case VisorVrSetting.TintOpacity: panel.VisorEndOpacity = Math.Clamp(panel.VisorEndOpacity + amount, 0f, 1f); break;
+                case VisorVrSetting.StripHeight: panel.VisorCoverage = Math.Clamp(panel.VisorCoverage + amount, 0f, 1f); break;
+                case VisorVrSetting.StripCurve: panel.VisorCurve = Math.Clamp(panel.VisorCurve + amount, 0f, 1f); break;
+                case VisorVrSetting.Scratches: panel.VisorScratches = Math.Clamp(panel.VisorScratches + amount, 0f, 1f); break;
+                case VisorVrSetting.Dirt: panel.VisorDirt = Math.Clamp(panel.VisorDirt + amount, 0f, 1f); break;
+                case VisorVrSetting.Bubbles: panel.VisorBubbles = Math.Clamp(panel.VisorBubbles + amount, 0f, 1f); break;
+                case VisorVrSetting.Seed: panel.VisorSeed += direction; break;
+            }
+        }
+
+        private static string VisorVrSettingText(OverlayPanel panel, VisorVrSetting setting) => setting switch
+        {
+            VisorVrSetting.Size => $"Size {panel.VisorSize:0.00}",
+            VisorVrSetting.OffsetX => $"Offset X {panel.VisorOffsetX * 100:0.0} cm",
+            VisorVrSetting.OffsetY => $"Offset Y {panel.VisorOffsetY * 100:0.0} cm",
+            VisorVrSetting.OffsetZ => $"Offset Z {-panel.VisorOffsetZ * 100:0.0} cm",
+            VisorVrSetting.SunOpacity => $"Sun strip {panel.VisorOpacity:P0}",
+            VisorVrSetting.TintOpacity => $"Glass tint {panel.VisorEndOpacity:P0}",
+            VisorVrSetting.StripHeight => $"Strip height {panel.VisorCoverage:P0}",
+            VisorVrSetting.StripCurve => $"Strip curve {panel.VisorCurve:P0}",
+            VisorVrSetting.Scratches => $"Scratches {panel.VisorScratches:P0}",
+            VisorVrSetting.Dirt => $"Dirt {panel.VisorDirt:P0}",
+            VisorVrSetting.Bubbles => $"Bubbles {panel.VisorBubbles:P0}",
+            _ => $"Pattern #{panel.VisorSeed}"
+        };
+
+        private string EditModeText() => _editAxisMode switch
+        {
+            PanelEditAxisMode.Move => Localization.T("EditMode.Mode.Move"),
+            PanelEditAxisMode.Rotate => Localization.T("EditMode.Mode.Rotate"),
+            PanelEditAxisMode.Settings => Localization.T("EditMode.Mode.Settings"),
+            _ => Localization.T("EditMode.Mode.Scale")
+        };
+
+        private void CycleVisorSetting(int direction)
+        {
+            var count = Enum.GetValues<VisorVrSetting>().Length;
+            _visorVrSetting = (VisorVrSetting)((((int)_visorVrSetting + direction) % count + count) % count);
+        }
+
+        private string BuildVisorVrHudText(OverlayPanel panel, bool isFine, bool isCoarse)
+        {
+            var panelName = panel.IsLocked ? $"{panel.Name} ({Localization.T("EditMode.LockedSuffix")})" : panel.Name;
+            var speed = isFine ? Localization.T("EditMode.Speed.Fine") : isCoarse ? Localization.T("EditMode.Speed.Coarse") : Localization.T("EditMode.Speed.Normal");
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine(Localization.T("EditMode.Vr.Title"));
+            sb.AppendLine(string.Format(Localization.T("EditMode.Vr.PanelLine"), panelName));
+            sb.AppendLine(string.Format(Localization.T("EditMode.Vr.ModeSpeedLine"), EditModeText(), speed));
+            if (_editAxisMode == PanelEditAxisMode.Settings)
+            {
+                foreach (var setting in Enum.GetValues<VisorVrSetting>())
+                {
+                    sb.AppendLine((setting == _visorVrSetting ? "> " : "   ") + VisorVrSettingText(panel, setting));
+                }
+                sb.Append(Localization.T("EditMode.Vr.VisorSettingsLegend"));
+            }
+            else
+            {
+                sb.AppendLine($"X {panel.VisorOffsetX:0.000}  Y {panel.VisorOffsetY:0.000}  Z {panel.VisorOffsetZ:0.000}");
+                sb.AppendLine($"{Localization.T("EditMode.Values.Scale")} {panel.VisorSize:0.00}");
+                sb.AppendLine();
+                sb.Append(Localization.T("EditMode.Vr.Legend"));
+            }
+            return sb.ToString();
+        }
+
+        private static Shared.SetVisorParamsMessage BuildVisorParams(OverlayPanel panel)
+        {
+            var sun = ParseHexColor(panel.VisorColor);
+            var tint = ParseHexColor(panel.VisorEndColor);
+            var textColor = ParseHexColor(panel.VisorTextColor);
+            return new Shared.SetVisorParamsMessage
+            {
+                PanelId = panel.Id,
+                SunR = sun.R / 255f, SunG = sun.G / 255f, SunB = sun.B / 255f,
+                SunOpacity = Math.Clamp(panel.VisorOpacity, 0f, 1f),
+                TintR = tint.R / 255f, TintG = tint.G / 255f, TintB = tint.B / 255f,
+                TintOpacity = Math.Clamp(panel.VisorEndOpacity, 0f, 1f),
+                StripHeight = Math.Clamp(panel.VisorCoverage, 0f, 1f),
+                StripCurve = Math.Clamp(panel.VisorCurve, 0f, 1f),
+                Scratches = Math.Clamp(panel.VisorScratches, 0f, 1f),
+                Dirt = Math.Clamp(panel.VisorDirt, 0f, 1f),
+                Bubbles = Math.Clamp(panel.VisorBubbles, 0f, 1f),
+                Seed = unchecked((uint)panel.VisorSeed),
+                OffsetX = Math.Clamp(panel.VisorOffsetX, -0.3f, 0.3f),
+                OffsetY = Math.Clamp(panel.VisorOffsetY, -0.3f, 0.3f),
+                OffsetZ = Math.Clamp(panel.VisorOffsetZ, -0.3f, 0.3f),
+                Size = Math.Clamp(panel.VisorSize, 0.3f, 3f),
+                TextR = textColor.R / 255f, TextG = textColor.G / 255f, TextB = textColor.B / 255f,
+                TextOpacity = Math.Clamp(panel.VisorTextOpacity, 0f, 1f),
+                TextSize = Math.Clamp(panel.VisorTextSize, 0f, 1f),
+                TextBlur = Math.Clamp(panel.VisorTextBlur, 0f, 1f),
+                Text = (panel.VisorText ?? string.Empty).Length > 63 ? panel.VisorText![..63] : panel.VisorText ?? string.Empty,
+                FontName = (panel.VisorTextFont ?? "Arial").Length > 31 ? panel.VisorTextFont![..31] : panel.VisorTextFont ?? "Arial",
+                Bold = panel.VisorTextBold,
+                Italic = panel.VisorTextItalic,
+            };
+        }
+
+        private static System.Drawing.Color ParseHexColor(string? hex)
+        {
+            try
+            {
+                if (!string.IsNullOrWhiteSpace(hex))
+                {
+                    return System.Drawing.ColorTranslator.FromHtml(hex.StartsWith('#') ? hex : "#" + hex);
+                }
+            }
+            catch
+            {
+                // Fall through to black for unparsable values.
             }
 
-            ResetVisorPlacement(panel);
+            return System.Drawing.Color.Black;
         }
 
-        /// <summary>Shared by <see cref="ApplyDefaultVisorPlacement"/> and the manual "Reset size" button.</summary>
-        private static void ResetVisorPlacement(OverlayPanel panel)
-        {
-            panel.HeadLocked = true;
-            panel.PositionX = 0f;
-            panel.PositionY = 0.15f;
-            panel.PositionZ = -1.2f;
-            panel.PitchDeg = 0f;
-            panel.YawDeg = 0f;
-            panel.RollDeg = 0f;
-            panel.WidthMeters = 0.5f;
-            panel.HeightMeters = 0.3f;
-        }
-
-        private void ResetVisorSizeButton_Click(object sender, RoutedEventArgs e)
+        private void NewVisorSeedButton_Click(object sender, RoutedEventArgs e)
         {
             if (sender is not FrameworkElement { Tag: OverlayPanel panel })
             {
                 return;
             }
 
-            ResetVisorPlacement(panel);
+            panel.VisorSeed = Random.Shared.Next(1, 65536);
         }
 
         /// <summary>
@@ -1628,8 +1882,10 @@ namespace Donutz_VR_HUD
                 return;
             }
 
-            var isEndColor = string.Equals(element.GetValue(System.Windows.Controls.Primitives.ButtonBase.CommandParameterProperty) as string, "End", StringComparison.Ordinal);
-            var currentHex = isEndColor ? panel.VisorEndColor : panel.VisorColor;
+            var target = element.GetValue(System.Windows.Controls.Primitives.ButtonBase.CommandParameterProperty) as string;
+            var isEndColor = string.Equals(target, "End", StringComparison.Ordinal);
+            var isTextColor = string.Equals(target, "Text", StringComparison.Ordinal);
+            var currentHex = isTextColor ? panel.VisorTextColor : isEndColor ? panel.VisorEndColor : panel.VisorColor;
 
             using var dialog = new System.Windows.Forms.ColorDialog
             {
@@ -1652,7 +1908,11 @@ namespace Donutz_VR_HUD
             {
                 var c = dialog.Color;
                 var hex = $"#{c.R:X2}{c.G:X2}{c.B:X2}";
-                if (isEndColor)
+                if (isTextColor)
+                {
+                    panel.VisorTextColor = hex;
+                }
+                else if (isEndColor)
                 {
                     panel.VisorEndColor = hex;
                 }
@@ -1689,15 +1949,21 @@ namespace Donutz_VR_HUD
                 case nameof(OverlayPanel.SourceType):
                     if (panel.SourceType == PanelSourceType.Visor)
                     {
-                        // The visor is meant to be a small, head-locked
-                        // accent in the corner of the view (not a
-                        // full-screen dashboard), so switching to it on an
-                        // otherwise still-default/untouched panel starts it
-                        // small and pulled back far enough that the whole
-                        // curved band is visible at once, instead of
-                        // filling (and overflowing) the field of view.
-                        ApplyDefaultVisorPlacement(panel);
+                        if (Panels.Any(p => p != panel && p.SourceType == PanelSourceType.Visor))
+                        {
+                            // Only one helmet/visor per profile.
+                            StatusText.Text = Localization.Instance["Helmet.OnlyOne"];
+                            panel.SourceType = PanelSourceType.TestPattern;
+                            return;
+                        }
+
+                        // A visor always moves with the head.
+                        panel.HeadLocked = true;
                     }
+                    // Clear the native panel state (e.g. the visor flag)
+                    // before the new source starts.
+                    _ipcClient?.RemovePanel(panel.Id);
+                    PushTransform(panel);
                     goto case nameof(OverlayPanel.ImagePath);
                 case nameof(OverlayPanel.WindowHandle):
                 case nameof(OverlayPanel.Url):
@@ -1708,6 +1974,30 @@ namespace Donutz_VR_HUD
                 case nameof(OverlayPanel.VisorEndOpacity):
                 case nameof(OverlayPanel.VisorCoverage):
                 case nameof(OverlayPanel.VisorCurve):
+                case nameof(OverlayPanel.VisorScratches):
+                case nameof(OverlayPanel.VisorDirt):
+                case nameof(OverlayPanel.VisorBubbles):
+                case nameof(OverlayPanel.VisorSeed):
+                case nameof(OverlayPanel.VisorOffsetX):
+                case nameof(OverlayPanel.VisorOffsetY):
+                case nameof(OverlayPanel.VisorOffsetZ):
+                case nameof(OverlayPanel.VisorSize):
+                case nameof(OverlayPanel.VisorText):
+                case nameof(OverlayPanel.VisorTextColor):
+                case nameof(OverlayPanel.VisorTextOpacity):
+                case nameof(OverlayPanel.VisorTextSize):
+                case nameof(OverlayPanel.VisorTextBlur):
+                case nameof(OverlayPanel.VisorTextFont):
+                case nameof(OverlayPanel.VisorTextBold):
+                case nameof(OverlayPanel.VisorTextItalic):
+                    if (panel.SourceType == PanelSourceType.Visor && e.PropertyName != nameof(OverlayPanel.SourceType))
+                    {
+                        // Parameter tweaks only need a params update, no source restart.
+                        _ipcClient?.SetVisorParams(BuildVisorParams(panel));
+                        UpdateEditModeHud();
+                        SaveSettings();
+                        break;
+                    }
                     if (_ipcClient is not null)
                     {
                         _ = RestartPanelSourceAsync(panel);
@@ -1730,7 +2020,8 @@ namespace Donutz_VR_HUD
                 panel.WidthMeters,
                 panel.HeightMeters,
                 panel.HeadLocked,
-                panel.OpaqueBackground);
+                panel.OpaqueBackground,
+                nonInteractive: panel.SourceType == PanelSourceType.Visor);
         }
 
         private async Task RestartPanelSourceAsync(OverlayPanel panel)
@@ -1798,13 +2089,17 @@ namespace Donutz_VR_HUD
             }
             else if (panel.SourceType == PanelSourceType.Visor)
             {
-                // Same as Image above: Start() renders its single frame
-                // synchronously, so FrameArrived must be subscribed first.
-                var visorSource = new VisorOverlaySource();
-                visorSource.FrameArrived += (sharedHandleName, width, height) => _ipcClient?.UpdateFrame(panel.Id, sharedHandleName, width, height);
-                visorSource.Start(panel.VisorColor, panel.VisorOpacity, panel.VisorEndColor, panel.VisorEndOpacity, panel.VisorCoverage, panel.VisorCurve);
-                source = visorSource;
-                _panelSources[panel.Id] = source;
+                // Rendered natively per eye (NativeLayer/VisorRenderer.cpp);
+                // only the look is sent, no texture source is needed.
+                try
+                {
+                    _ipcClient.SetVisorParams(BuildVisorParams(panel));
+                    OverlayIpcClient.AppendAppLogEntry($"Visor params sent (enabled={panel.IsEnabled}, sun={panel.VisorOpacity:0.00}, text='{panel.VisorText}').");
+                }
+                catch (Exception ex)
+                {
+                    OverlayIpcClient.AppendAppLogEntry($"Sending visor params failed: {ex}");
+                }
                 return;
             }
             else
@@ -1883,6 +2178,63 @@ namespace Donutz_VR_HUD
                 RefreshResetBindingRows();
                 SaveSettings();
             }
+        }
+
+        /// <summary>Opens/closes the helmet visor (toggles all visor panels), e.g. from a wheel button.</summary>
+        private void ToggleVisor()
+        {
+            var visors = Panels.Where(p => p.SourceType == PanelSourceType.Visor).ToList();
+            if (visors.Count == 0)
+            {
+                return;
+            }
+
+            var open = visors.Any(p => p.IsEnabled);
+            foreach (var visor in visors)
+            {
+                visor.IsEnabled = !open;
+            }
+        }
+
+        private void LearnVisorToggleButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_visorToggleBinding.IsLearning)
+            {
+                _visorToggleBinding.CancelLearning();
+                LearnVisorToggleButton.Content = Localization.T("Global.VrReset.Learn");
+                RefreshVisorToggleBindingRows();
+                return;
+            }
+
+            VisorToggleBindingStatusText.Text = "Please press the desired button now…";
+            VisorToggleBindingStatusText.Visibility = Visibility.Visible;
+            LearnVisorToggleButton.Content = "Cancel";
+            _visorToggleBinding.StartLearning();
+        }
+
+        private void RemoveVisorToggleBindingButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button { Tag: ResetBindingRow row })
+            {
+                _visorToggleBinding.RemoveBinding(row.Index);
+                RefreshVisorToggleBindingRows();
+                SaveSettings();
+            }
+        }
+
+        private void ManualVisorToggleButton_Click(object sender, RoutedEventArgs e) => ToggleVisor();
+
+        private void RefreshVisorToggleBindingRows()
+        {
+            VisorToggleBindingRows.Clear();
+            var bindings = _visorToggleBinding.Bindings;
+            for (var i = 0; i < bindings.Count; i++)
+            {
+                VisorToggleBindingRows.Add(new ResetBindingRow(i, bindings[i].DeviceName, bindings[i].ButtonIndex));
+            }
+
+            VisorToggleBindingStatusText.Text = bindings.Count == 0 ? "No button assigned." : string.Empty;
+            VisorToggleBindingStatusText.Visibility = bindings.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         }
 
         /// <summary>Rebuilds <see cref="ResetBindingRows"/> from the current <see cref="ResetButtonBinding"/> state.</summary>
@@ -2117,8 +2469,33 @@ namespace Donutz_VR_HUD
                 return;
             }
 
+            if (action is NudgeAction.NextSetting or NudgeAction.PrevSetting)
+            {
+                if (_editAxisMode == PanelEditAxisMode.Settings &&
+                    ActiveNudgePanelComboBox.SelectedItem is OverlayPanel { SourceType: PanelSourceType.Visor })
+                {
+                    CycleVisorSetting(action == NudgeAction.NextSetting ? 1 : -1);
+                    UpdateEditModeHud();
+                }
+                return;
+            }
+
             if (ActiveNudgePanelComboBox.SelectedItem is not OverlayPanel panel || panel.IsLocked)
             {
+                return;
+            }
+
+            if (panel.SourceType == PanelSourceType.Visor && action is NudgeAction.ScaleUp or NudgeAction.ScaleDown)
+            {
+                var dir = action == NudgeAction.ScaleUp ? 1 : -1;
+                if (_editAxisMode == PanelEditAxisMode.Settings)
+                {
+                    ApplyVisorVrSetting(panel, dir);
+                }
+                else
+                {
+                    panel.VisorSize = Math.Clamp(panel.VisorSize + dir * NudgeStepSizes[_nudgeStepIndex] * 10f, 0.3f, 3f);
+                }
                 return;
             }
 
@@ -2240,6 +2617,7 @@ namespace Donutz_VR_HUD
             catch (Exception ex)
             {
                 StatusText.Text = $"Error starting the overlay: {ex.Message}";
+                OverlayIpcClient.AppendAppLogEntry($"Starting the overlay failed: {ex}");
                 StopOverlay();
                 SetOverlayStatus(OverlayStatus.Error);
                 return false;
@@ -2318,6 +2696,7 @@ namespace Donutz_VR_HUD
             SaveSettings();
             StopOverlay();
             _resetButtonBinding.Dispose();
+            _visorToggleBinding.Dispose();
             _panelNudgeController.Dispose();
             _trayIcon?.Dispose();
             _trayIcon = null;

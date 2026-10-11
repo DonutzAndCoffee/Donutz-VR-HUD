@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 
 namespace Donutz_VR_HUD
 {
@@ -99,16 +99,39 @@ namespace Donutz_VR_HUD
             ["Panel.Source.WebDashboard"] = "Web dashboard (URL)",
             ["Panel.Source.TestPattern"] = "Test pattern",
             ["Panel.Source.Image"] = "Image (PNG/JPG/...)",
-            ["Panel.Source.Visor"] = "Visor (gradient)",
+            ["Panel.Source.Visor"] = "Helmet visor",
             ["Panel.Browse"] = "Browse...",
-            ["Panel.Visor.Start"] = "Start:",
-            ["Panel.Visor.End"] = "End:",
+            ["Panel.Visor.Start"] = "Sun strip:",
+            ["Panel.Visor.End"] = "Glass tint:",
             ["Panel.Visor.Opacity"] = "Opacity:",
-            ["Panel.Visor.Height"] = "Height:",
-            ["Panel.Visor.Curve"] = "Curve:",
-            ["Panel.Visor.ResetSize"] = "Reset size",
-            ["Panel.Visor.ResetSizeTooltip"] =
-                "Resets to a small, head-locked default size/position so the whole visor is visible.",
+            ["Panel.Visor.Height"] = "Strip height:",
+            ["Panel.Visor.Curve"] = "Strip curve:",
+            ["Panel.Visor.Scratches"] = "Scratches:",
+            ["Panel.Visor.Dirt"] = "Dirt:",
+            ["Panel.Visor.Bubbles"] = "Bubbles:",
+            ["Panel.Visor.NewSeed"] = "Shuffle",
+            ["Panel.Visor.NewSeedTooltip"] =
+                "Generates a new random layout of scratches, dirt and bubbles.",
+            ["Panel.Visor.Size"] = "Visor size / offset:",
+            ["Panel.Visor.Text"] = "Strip text:",
+            ["Panel.Visor.TextSize"] = "Size:",
+            ["Panel.Visor.TextBlur"] = "Blur:",
+            ["Panel.Visor.TextFont"] = "Font:",
+            ["Panel.Visor.TextBold"] = "Bold",
+            ["Panel.Visor.TextItalic"] = "Italic",
+            ["Helmet.Library"] = "Helmet library:",
+            ["Helmet.Load"] = "Load",
+            ["Helmet.Save"] = "Save",
+            ["Helmet.Delete"] = "Delete",
+            ["Helmet.Saved"] = "Helmet \"{0}\" saved to library.",
+            ["Helmet.Loaded"] = "Helmet \"{0}\" applied.",
+            ["Helmet.OnlyOne"] = "Only one helmet/visor per profile is allowed.",
+            ["Global.VisorToggle.Header"] = "Open/close helmet visor",
+            ["Global.VisorToggle.Manual"] = "Toggle visor",
+            ["EditMode.Mode.Settings"] = "Visor look",
+            ["EditMode.Vr.VisorSettingsLegend"] = "A/D: select setting   W/S: change   Tab: mode",
+            ["Panel.Visor.Hint"] =
+                "Rendered as a 3D visor around your head. Use the sliders above or Edit Mode (QWASDE moves, Tab switches Move / Scale / Visor look; in Visor look A/D selects a setting and W/S changes it). The panel position/size fields below are ignored.",
             ["Panel.Position.X"] = "X:",
             ["Panel.Position.Y"] = "Y:",
             ["Panel.Position.Z"] = "Z:",

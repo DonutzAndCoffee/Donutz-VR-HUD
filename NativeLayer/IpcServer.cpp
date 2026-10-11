@@ -192,6 +192,21 @@ namespace
 		case IpcServer::MessageType::Recenter:
 			g_recenterRequested = true;
 			break;
+		case IpcServer::MessageType::SetVisorParams:
+			Logging::Log("IpcServer: SetVisorParams message, payload=" + std::to_string(payload.size()) +
+				" expected=" + std::to_string(sizeof(IpcServer::SetVisorParamsPayload)));
+			if (payload.size() >= sizeof(IpcServer::SetVisorParamsPayload))
+			{
+				IpcServer::SetVisorParamsPayload msg;
+				std::memcpy(&msg, payload.data(), sizeof(msg));
+				std::lock_guard<std::mutex> lock(g_stateMutex);
+				auto& panel = g_panels[ToKey(msg.panelId)];
+				panel.panelId = msg.panelId;
+				panel.isVisor = true;
+				panel.visor = msg.params;
+				Logging::Log("IpcServer: visor params received.");
+			}
+			break;
 		case IpcServer::MessageType::SetEditModeActive:
 			if (payload.size() >= sizeof(IpcServer::SetEditModeActivePayload))
 			{

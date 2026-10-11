@@ -60,29 +60,84 @@ namespace Donutz_VR_HUD.Models
         private string _imagePath = string.Empty;
         public string ImagePath { get => _imagePath; set => Set(ref _imagePath, value); }
 
-        /// <summary>Tint color ("#RRGGBB") at the visor's top/start edge (SourceType == Visor).</summary>
+        /// <summary>Sun strip color ("#RRGGBB") at the top of the visor (SourceType == Visor).</summary>
         private string _visorColor = "#1A1A26";
         public string VisorColor { get => _visorColor; set => Set(ref _visorColor, value); }
 
-        /// <summary>Tint strength (0..1) at the visor's top/start edge.</summary>
+        /// <summary>Sun strip strength (0..1).</summary>
         private float _visorOpacity = 0.65f;
         public float VisorOpacity { get => _visorOpacity; set => Set(ref _visorOpacity, value); }
 
-        /// <summary>Tint color ("#RRGGBB") at the visor's bottom/end (curved) edge.</summary>
+        /// <summary>Glass tint color ("#RRGGBB") of the whole visor.</summary>
         private string _visorEndColor = "#1A1A26";
         public string VisorEndColor { get => _visorEndColor; set => Set(ref _visorEndColor, value); }
 
-        /// <summary>Tint strength (0..1) at the visor's bottom/end (curved) edge. Defaults to 0 (fully transparent).</summary>
+        /// <summary>Glass tint strength (0..1) of the whole visor. Defaults to 0 (clear).</summary>
         private float _visorEndOpacity;
         public float VisorEndOpacity { get => _visorEndOpacity; set => Set(ref _visorEndOpacity, value); }
 
-        /// <summary>Fraction (0..1) of the panel's height covered by the tinted band at its flattest (edges).</summary>
+        /// <summary>How far (0..1) the sun strip reaches down from the top of the visor.</summary>
         private float _visorCoverage = 0.35f;
         public float VisorCoverage { get => _visorCoverage; set => Set(ref _visorCoverage, value); }
 
-        /// <summary>Fraction (0..1) controlling how strongly the band's lower edge domes/dips toward the middle.</summary>
+        /// <summary>How strongly (0..1) the sun strip's lower edge dips toward the middle.</summary>
         private float _visorCurve = 0.18f;
         public float VisorCurve { get => _visorCurve; set => Set(ref _visorCurve, value); }
+
+        /// <summary>Amount (0..1) of fine scratches on the visor that catch the light as the head moves.</summary>
+        private float _visorScratches = 0.3f;
+        public float VisorScratches { get => _visorScratches; set => Set(ref _visorScratches, value); }
+
+        /// <summary>Amount (0..1) of out-of-focus dirt/dust specks on the visor.</summary>
+        private float _visorDirt = 0.25f;
+        public float VisorDirt { get => _visorDirt; set => Set(ref _visorDirt, value); }
+
+        /// <summary>Amount (0..1) of small air bubbles trapped in the visor material.</summary>
+        private float _visorBubbles = 0.15f;
+        public float VisorBubbles { get => _visorBubbles; set => Set(ref _visorBubbles, value); }
+
+        /// <summary>Random seed for the scratch/dirt/bubble layout, so each visor can look different.</summary>
+        private int _visorSeed = 1;
+        public int VisorSeed { get => _visorSeed; set => Set(ref _visorSeed, value); }
+
+        /// <summary>Visor shell center offset from the head in meters (x right, y up, z back).</summary>
+        private float _visorOffsetX;
+        public float VisorOffsetX { get => _visorOffsetX; set => Set(ref _visorOffsetX, value); }
+
+        private float _visorOffsetY;
+        public float VisorOffsetY { get => _visorOffsetY; set => Set(ref _visorOffsetY, value); }
+
+        private float _visorOffsetZ;
+        public float VisorOffsetZ { get => _visorOffsetZ; set => Set(ref _visorOffsetZ, value); }
+
+        /// <summary>Visor shell size multiplier (1 = default helmet size).</summary>
+        private float _visorSize = 1f;
+        public float VisorSize { get => _visorSize; set => Set(ref _visorSize, value); }
+
+        /// <summary>Lettering on the sun strip (e.g. car brand), shown mirrored and out of focus.</summary>
+        private string _visorText = string.Empty;
+        public string VisorText { get => _visorText; set => Set(ref _visorText, value ?? string.Empty); }
+
+        private string _visorTextColor = "#FFFFFF";
+        public string VisorTextColor { get => _visorTextColor; set => Set(ref _visorTextColor, value); }
+
+        private float _visorTextOpacity = 0.85f;
+        public float VisorTextOpacity { get => _visorTextOpacity; set => Set(ref _visorTextOpacity, value); }
+
+        private float _visorTextSize = 0.4f;
+        public float VisorTextSize { get => _visorTextSize; set => Set(ref _visorTextSize, value); }
+
+        private float _visorTextBlur = 0.4f;
+        public float VisorTextBlur { get => _visorTextBlur; set => Set(ref _visorTextBlur, value); }
+
+        private string _visorTextFont = "Arial";
+        public string VisorTextFont { get => _visorTextFont; set => Set(ref _visorTextFont, string.IsNullOrWhiteSpace(value) ? "Arial" : value); }
+
+        private bool _visorTextBold = true;
+        public bool VisorTextBold { get => _visorTextBold; set => Set(ref _visorTextBold, value); }
+
+        private bool _visorTextItalic;
+        public bool VisorTextItalic { get => _visorTextItalic; set => Set(ref _visorTextItalic, value); }
 
         // Position in meters, relative to the player (OpenXR local space).
         private float _positionX;

@@ -113,6 +113,8 @@ namespace ControllerInput
 		ToggleStepSize = 14,
 		ScaleUp = 15,
 		ScaleDown = 16,
+		NextSetting = 17,
+		PrevSetting = 18,
 	};
 
 	// Creates the action set/actions and suggests interaction profile

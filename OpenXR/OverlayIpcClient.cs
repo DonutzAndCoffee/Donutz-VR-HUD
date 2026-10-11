@@ -346,11 +346,24 @@ namespace Donutz_VR_HUD.OpenXR
             Send(OverlayIpcMessageType.SetEditModeActive, StructToBytes(message));
         }
 
+        /// <summary>
+        /// Marks a panel as the procedural helmet visor and sends its look
+        /// (see NativeLayer/VisorRenderer.cpp).
+        /// </summary>
+        public void SetVisorParams(SetVisorParamsMessage message)
+        {
+            Send(OverlayIpcMessageType.SetVisorParams, StructToBytes(message));
+        }
+
         private void Send(OverlayIpcMessageType type, byte[] payload)
         {
             var pipe = _pipe;
             if (pipe is null || !pipe.IsConnected)
             {
+                if (type == OverlayIpcMessageType.SetVisorParams)
+                {
+                    AppendAppLogEntry("SetVisorParams dropped: pipe not connected.");
+                }
                 return;
             }
 
@@ -368,8 +381,9 @@ namespace Donutz_VR_HUD.OpenXR
                     }
                     pipe.Flush();
                 }
-                catch (IOException)
+                catch (IOException ex)
                 {
+                    AppendAppLogEntry($"IPC send of {type} failed: {ex.Message}");
                     // Pipe broke (host app/layer terminated); caller can
                     // detect via IsConnected on the next send attempt.
                 }

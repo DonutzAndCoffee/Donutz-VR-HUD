@@ -61,7 +61,7 @@
 	<Link>
 	  <ModuleDefinitionFile>DonutzVrHudLayer.def</ModuleDefinitionFile>
 	  <SubSystem>Windows</SubSystem>
-	  <AdditionalDependencies>d3d11.lib;%(AdditionalDependencies)</AdditionalDependencies>
+	  <AdditionalDependencies>d3d11.lib;d3dcompiler.lib;%(AdditionalDependencies)</AdditionalDependencies>
 	</Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)'=='Debug'">
@@ -87,6 +87,7 @@
 	<ClInclude Include="HookedFunctions.h" />
 	<ClInclude Include="IpcServer.h" />
 	<ClInclude Include="Logging.h" />
+	<ClInclude Include="VisorRenderer.h" />
   </ItemGroup>
   <ItemGroup>
 	<ClCompile Include="ApiLayerInterface.cpp" />
@@ -94,6 +95,7 @@
 	<ClCompile Include="HookedFunctions.cpp" />
 	<ClCompile Include="IpcServer.cpp" />
 	<ClCompile Include="Logging.cpp" />
+	<ClCompile Include="VisorRenderer.cpp" />
   </ItemGroup>
   <ItemGroup>
 	<None Include="DonutzVrHudLayer.def" />

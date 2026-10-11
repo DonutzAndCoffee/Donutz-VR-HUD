@@ -1,4 +1,4 @@
-using System.Runtime.InteropServices;
+﻿using System.Runtime.InteropServices;
 
 namespace Donutz_VR_HUD.Shared
 {
@@ -38,6 +38,13 @@ namespace Donutz_VR_HUD.Shared
         /// user has explicitly enabled Edit Mode in the GUI.
         /// </summary>
         SetEditModeActive = 5,
+
+        /// <summary>
+        /// Client -> server: marks a panel as the procedural helmet visor and
+        /// sets its look. The native layer renders it per eye as a 3D shell
+        /// (see NativeLayer/VisorRenderer.cpp) instead of a textured quad.
+        /// </summary>
+        SetVisorParams = 6,
 
         /// <summary>
         /// Server -> client: a VR controller grab ended, reporting the
@@ -136,6 +143,30 @@ namespace Donutz_VR_HUD.Shared
     public struct SetEditModeActiveMessage
     {
         [MarshalAs(UnmanagedType.I1)] public bool Active;
+    }
+
+    /// <summary>Client -> server. See <see cref="OverlayIpcMessageType.SetVisorParams"/>. Colors are 0..1 sRGB.</summary>
+    [StructLayout(LayoutKind.Sequential, Pack = 1, CharSet = CharSet.Unicode)]
+    public struct SetVisorParamsMessage
+    {
+        public Guid PanelId;
+        public float SunR, SunG, SunB, SunOpacity;
+        public float TintR, TintG, TintB, TintOpacity;
+        public float StripHeight;
+        public float StripCurve;
+        public float Scratches;
+        public float Dirt;
+        public float Bubbles;
+        public uint Seed;
+        public float OffsetX, OffsetY, OffsetZ;
+        public float Size;
+        public float TextR, TextG, TextB, TextOpacity;
+        public float TextSize;
+        public float TextBlur;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 64)] public string Text;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string FontName;
+        [MarshalAs(UnmanagedType.I1)] public bool Bold;
+        [MarshalAs(UnmanagedType.I1)] public bool Italic;
     }
 
     /// <summary>Server -> client. See <see cref="OverlayIpcMessageType.PanelTransformUpdated"/>.</summary>

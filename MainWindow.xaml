@@ -1,4 +1,4 @@
-<Window x:Class="Donutz_VR_HUD.MainWindow"
+﻿<Window x:Class="Donutz_VR_HUD.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -183,6 +183,14 @@
                                     </StackPanel>
                                     <StackPanel Grid.Column="0" Orientation="Vertical"
                                                 Visibility="{Binding SourceType, Converter={StaticResource SourceTypeVisibilityConverter}, ConverterParameter=Visor}">
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                            <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Helmet.Library]}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                            <ComboBox Width="180" IsEditable="True" Margin="0,0,4,0"
+                                                      ItemsSource="{Binding DataContext.HelmetLibrary, RelativeSource={RelativeSource AncestorType=Window}}"/>
+                                            <Button Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Helmet.Load]}" Click="HelmetLoadButton_Click" Tag="{Binding}" Margin="0,0,4,0"/>
+                                            <Button Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Helmet.Save]}" Click="HelmetSaveButton_Click" Tag="{Binding}" Margin="0,0,4,0"/>
+                                            <Button Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Helmet.Delete]}" Click="HelmetDeleteButton_Click" Tag="{Binding}"/>
+                                        </StackPanel>
                                         <StackPanel Orientation="Horizontal">
                                             <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Start]}" VerticalAlignment="Center" Margin="0,0,4,0"/>
                                             <Border Width="20" Height="20" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="1" Margin="0,0,4,0"
@@ -203,11 +211,49 @@
                                         </StackPanel>
                                         <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
                                             <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Height]}" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                            <TextBox Text="{Binding VisorCoverage, StringFormat={}{0:0.00}, UpdateSourceTrigger=PropertyChanged}" Width="48" TextAlignment="Center" Margin="0,0,12,0"/>
+                                            <Slider Value="{Binding VisorCoverage}" Minimum="0" Maximum="1" Width="100" VerticalAlignment="Center" Margin="0,0,12,0"/>
                                             <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Curve]}" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                            <TextBox Text="{Binding VisorCurve, StringFormat={}{0:0.00}, UpdateSourceTrigger=PropertyChanged}" Width="48" TextAlignment="Center" Margin="0,0,12,0"/>
-                                            <Button Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.ResetSize]}" Click="ResetVisorSizeButton_Click" Tag="{Binding}" ToolTip="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.ResetSizeTooltip]}"/>
+                                            <Slider Value="{Binding VisorCurve}" Minimum="0" Maximum="1" Width="100" VerticalAlignment="Center"/>
                                         </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                            <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Scratches]}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                            <Slider Value="{Binding VisorScratches}" Minimum="0" Maximum="1" Width="80" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                            <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Dirt]}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                            <Slider Value="{Binding VisorDirt}" Minimum="0" Maximum="1" Width="80" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                            <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Bubbles]}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                            <Slider Value="{Binding VisorBubbles}" Minimum="0" Maximum="1" Width="80" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                            <Button Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.NewSeed]}" Click="NewVisorSeedButton_Click" Tag="{Binding}" ToolTip="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.NewSeedTooltip]}"/>
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                            <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Size]}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                            <Slider Value="{Binding VisorSize}" Minimum="0.3" Maximum="3" Width="80" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                            <TextBlock Text="X:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                            <Slider Value="{Binding VisorOffsetX}" Minimum="-0.3" Maximum="0.3" Width="70" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                            <TextBlock Text="Y:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                            <Slider Value="{Binding VisorOffsetY}" Minimum="-0.3" Maximum="0.3" Width="70" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                            <TextBlock Text="Z:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                            <Slider Value="{Binding VisorOffsetZ}" Minimum="-0.3" Maximum="0.3" Width="70" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                            <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Text]}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                            <TextBox Text="{Binding VisorText, UpdateSourceTrigger=PropertyChanged}" Width="140" MaxLength="63" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                            <Border Width="20" Height="20" BorderBrush="Gray" BorderThickness="1" Margin="0,0,4,0"
+                                                    Background="{Binding VisorTextColor, Converter={StaticResource HexColorToBrushConverter}}"/>
+                                            <Button Content="..." Width="28" Click="PickVisorColorButton_Click" Tag="{Binding}" CommandParameter="Text" Margin="0,0,12,0"/>
+                                            <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Opacity]}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                            <Slider Value="{Binding VisorTextOpacity}" Minimum="0" Maximum="1" Width="70" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                            <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.TextSize]}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                            <Slider Value="{Binding VisorTextSize}" Minimum="0" Maximum="1" Width="70" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                            <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.TextBlur]}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                            <Slider Value="{Binding VisorTextBlur}" Minimum="0" Maximum="1" Width="70" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                            <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.TextFont]}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                            <ComboBox ItemsSource="{x:Static Fonts.SystemFontFamilies}" Text="{Binding VisorTextFont, UpdateSourceTrigger=PropertyChanged}" IsEditable="True" Width="180" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                            <CheckBox Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.TextBold]}" IsChecked="{Binding VisorTextBold}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                            <CheckBox Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.TextItalic]}" IsChecked="{Binding VisorTextItalic}" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Hint]}" Opacity="0.7" TextWrapping="Wrap" Margin="0,4,0,0"/>
                                     </StackPanel>
                                 </Grid>
 
@@ -374,6 +420,32 @@
                                 </Grid.ColumnDefinitions>
                                 <Button x:Name="LearnResetButton" Grid.Column="0" Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Global.VrReset.Learn]}" Click="LearnResetButton_Click" Margin="0,0,8,0" HorizontalAlignment="Left"/>
                                 <Button x:Name="ManualResetButton" Grid.Column="1" Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Global.VrReset.ManualReset]}" Click="ManualResetButton_Click"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Helmet visor open/close button binding -->
+                    <Border BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="4" Padding="8" Margin="0,0,0,8">
+                        <StackPanel>
+                            <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Global.VisorToggle.Header]}" FontWeight="Bold" Margin="0,0,0,8"/>
+                            <ItemsControl ItemsSource="{Binding VisorToggleBindingRows}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type local:ResetBindingRow}">
+                                        <DockPanel Margin="0,2,0,2">
+                                            <Button DockPanel.Dock="Right" Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Global.Nudge.Clear]}" Width="80" Margin="4,0,0,0" Click="RemoveVisorToggleBindingButton_Click" Tag="{Binding}"/>
+                                            <TextBlock Text="{Binding DisplayText}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                        </DockPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock x:Name="VisorToggleBindingStatusText" VerticalAlignment="Center" Margin="0,0,0,8"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <Button x:Name="LearnVisorToggleButton" Grid.Column="0" Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Global.VrReset.Learn]}" Click="LearnVisorToggleButton_Click" Margin="0,0,8,0" HorizontalAlignment="Left"/>
+                                <Button Grid.Column="1" Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Global.VisorToggle.Manual]}" Click="ManualVisorToggleButton_Click"/>
                             </Grid>
                         </StackPanel>
                     </Border>
