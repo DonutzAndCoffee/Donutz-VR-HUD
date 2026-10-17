@@ -118,6 +118,7 @@ namespace Donutz_VR_HUD
         public ObservableCollection<OverlayPanel> Panels { get; } = new();
         public ObservableCollection<HelmetPreset> HelmetLibrary { get; } = new(HelmetStore.Load());
         public ObservableCollection<CapturableWindow> AvailableWindows { get; } = new();
+        public ObservableCollection<SimHubClient.SimHubDashboard> SimHubDashboards { get; } = new(SimHubClient.GetLocalDashboards());
         public ObservableCollection<Profile> Profiles { get; } = new();
         public ObservableCollection<string> RunningProcessNames { get; } = new();
         public ObservableCollection<NudgeActionRow> NudgeActionRows { get; } = new();
@@ -648,6 +649,15 @@ namespace Donutz_VR_HUD
 
         [DllImport("dwmapi.dll", PreserveSig = true)]
         private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int pvAttribute, int cbAttribute);
+
+        private void SimHubDashboardComboBox_DropDownOpened(object sender, EventArgs e)
+        {
+            SimHubDashboards.Clear();
+            foreach (var dashboard in SimHubClient.GetLocalDashboards())
+            {
+                SimHubDashboards.Add(dashboard);
+            }
+        }
 
         private void RefreshWindowList()
         {

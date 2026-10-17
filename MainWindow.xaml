@@ -174,8 +174,11 @@
                                     <ComboBox Grid.Column="0" ItemsSource="{Binding DataContext.AvailableWindows, RelativeSource={RelativeSource AncestorType=Window}}"
                                               DisplayMemberPath="Title" SelectedValuePath="Handle" SelectedValue="{Binding WindowHandle}"
                                               Visibility="{Binding SourceType, Converter={StaticResource SourceTypeVisibilityConverter}, ConverterParameter=WindowCapture}"/>
-                                    <TextBox Grid.Column="0" Text="{Binding Url, UpdateSourceTrigger=PropertyChanged}"
-                                             Visibility="{Binding SourceType, Converter={StaticResource SourceTypeVisibilityConverter}, ConverterParameter=WebDashboard}"/>
+                                    <ComboBox Grid.Column="0" IsEditable="True" Text="{Binding Url, UpdateSourceTrigger=PropertyChanged}"
+                                              ItemsSource="{Binding DataContext.SimHubDashboards, RelativeSource={RelativeSource AncestorType=Window}}"
+                                              DisplayMemberPath="Name" TextSearch.TextPath="Url"
+                                              DropDownOpened="SimHubDashboardComboBox_DropDownOpened"
+                                              Visibility="{Binding SourceType, Converter={StaticResource SourceTypeVisibilityConverter}, ConverterParameter=WebDashboard}"/>
                                     <StackPanel Grid.Column="0" Orientation="Horizontal"
                                                 Visibility="{Binding SourceType, Converter={StaticResource SourceTypeVisibilityConverter}, ConverterParameter=Image}">
                                         <TextBox Text="{Binding ImagePath, UpdateSourceTrigger=PropertyChanged}" Width="260" IsReadOnly="True" Margin="0,0,8,0"/>

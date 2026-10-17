@@ -1,4 +1,4 @@
-using System.Net.Http;
+﻿using System.Net.Http;
 using System.Text.Json;
 
 namespace Donutz_VR_HUD.Services
@@ -78,6 +78,53 @@ namespace Donutz_VR_HUD.Services
                 // hiccup, etc. -- not fatal, just means auto-detection isn't
                 // available right now.
                 return null;
+            }
+        }
+
+        /// <summary>A SimHub dashboard installed locally, with its web URL.</summary>
+        public sealed record SimHubDashboard(string Name, string Url);
+
+        /// <summary>
+        /// Lists the dashboards installed in the local SimHub's DashTemplates
+        /// folder (install path and HTTP port read from HKCU\Software\SimHub).
+        /// Each dashboard is a subfolder containing "&lt;name&gt;.djson"; its
+        /// URL is http://127.0.0.1:&lt;port&gt;/Overlay/&lt;name&gt;.
+        /// Returns an empty list if SimHub isn't installed.
+        /// </summary>
+        public static IReadOnlyList<SimHubDashboard> GetLocalDashboards()
+        {
+            try
+            {
+                using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\SimHub");
+                var installDir = key?.GetValue("InstallDirectory") as string;
+                if (string.IsNullOrWhiteSpace(installDir))
+                {
+                    return [];
+                }
+
+                var port = key?.GetValue("HttpPort")?.ToString();
+                if (string.IsNullOrWhiteSpace(port))
+                {
+                    port = "8888";
+                }
+
+                var templatesDir = System.IO.Path.Combine(installDir, "DashTemplates");
+                if (!System.IO.Directory.Exists(templatesDir))
+                {
+                    return [];
+                }
+
+                return System.IO.Directory.EnumerateDirectories(templatesDir)
+                    .Select(System.IO.Path.GetFileName)
+                    .Where(name => !string.IsNullOrEmpty(name) &&
+                                   System.IO.File.Exists(System.IO.Path.Combine(templatesDir, name, name + ".djson")))
+                    .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
+                    .Select(name => new SimHubDashboard(name!, $"http://127.0.0.1:{port}/Overlay/{Uri.EscapeDataString(name!)}"))
+                    .ToList();
+            }
+            catch
+            {
+                return [];
             }
         }
 
