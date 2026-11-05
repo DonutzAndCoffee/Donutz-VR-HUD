@@ -167,6 +167,8 @@ namespace Donutz_VR_HUD.Shared
         [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string FontName;
         [MarshalAs(UnmanagedType.I1)] public bool Bold;
         [MarshalAs(UnmanagedType.I1)] public bool Italic;
+        public float OpenAngleDeg;
+        public float EdgeCurve;
     }
 
     /// <summary>Server -> client. See <see cref="OverlayIpcMessageType.PanelTransformUpdated"/>.</summary>

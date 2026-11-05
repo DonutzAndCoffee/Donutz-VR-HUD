@@ -1034,12 +1034,35 @@ namespace
             const IpcServer::PanelState* visorPanel = nullptr;
             for (const auto& panel : panels)
             {
-                if (panel.isVisor && panel.enabled)
+                if (panel.isVisor)
                 {
                     visorPanel = &panel;
                     break;
                 }
             }
+
+            // Animated hinge: enabled = closed (0), disabled = open (1).
+            // Eased over ~0.25 s; when open the raised glass edge stays visible at the top.
+            static float s_visorOpen = 1.0f;
+            static LARGE_INTEGER s_visorLastTick{};
+            {
+                LARGE_INTEGER now{};
+                LARGE_INTEGER freq{};
+                QueryPerformanceCounter(&now);
+                QueryPerformanceFrequency(&freq);
+                float dt = s_visorLastTick.QuadPart != 0
+                    ? static_cast<float>(now.QuadPart - s_visorLastTick.QuadPart) / static_cast<float>(freq.QuadPart)
+                    : 0.0f;
+                s_visorLastTick = now;
+                dt = std::clamp(dt, 0.0f, 0.1f);
+                const float target = (visorPanel != nullptr && visorPanel->enabled) ? 0.0f : 1.0f;
+                const float step = dt / 0.25f;
+                s_visorOpen = s_visorOpen < target
+                    ? (std::min)(target, s_visorOpen + step)
+                    : (std::max)(target, s_visorOpen - step);
+            }
+            const float visorLinear = s_visorOpen;
+            const float visorEased = visorLinear * visorLinear * (3.0f - 2.0f * visorLinear);
 
             const XrCompositionLayerProjection* appProjection = nullptr;
             for (uint32_t i = 0; visorPanel != nullptr && i < frameEndInfo->layerCount; ++i)
@@ -1120,7 +1143,7 @@ namespace
                             g_d3dDevice, g_d3dContext, swapchain->images[imageIndex],
                             static_cast<DXGI_FORMAT>(swapchain->format),
                             static_cast<uint32_t>(w), static_cast<uint32_t>(h),
-                            visorPanel->visor, headPose, appView.pose, appView.fov);
+                            visorPanel->visor, headPose, appView.pose, appView.fov, visorEased);
                     }
                     else
                     {

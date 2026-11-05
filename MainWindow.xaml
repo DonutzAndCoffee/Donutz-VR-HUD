@@ -184,83 +184,234 @@
                                         <TextBox Text="{Binding ImagePath, UpdateSourceTrigger=PropertyChanged}" Width="260" IsReadOnly="True" Margin="0,0,8,0"/>
                                         <Button Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Browse]}" Click="BrowseImageButton_Click" Tag="{Binding}"/>
                                     </StackPanel>
-                                    <StackPanel Grid.Column="0" Orientation="Vertical"
-                                                Visibility="{Binding SourceType, Converter={StaticResource SourceTypeVisibilityConverter}, ConverterParameter=Visor}">
-                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
-                                            <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Helmet.Library]}" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                            <ComboBox Width="180" IsEditable="True" Margin="0,0,4,0"
-                                                      ItemsSource="{Binding DataContext.HelmetLibrary, RelativeSource={RelativeSource AncestorType=Window}}"/>
-                                            <Button Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Helmet.Load]}" Click="HelmetLoadButton_Click" Tag="{Binding}" Margin="0,0,4,0"/>
-                                            <Button Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Helmet.Save]}" Click="HelmetSaveButton_Click" Tag="{Binding}" Margin="0,0,4,0"/>
-                                            <Button Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Helmet.Delete]}" Click="HelmetDeleteButton_Click" Tag="{Binding}"/>
-                                        </StackPanel>
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Start]}" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                            <Border Width="20" Height="20" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="1" Margin="0,0,4,0"
-                                                    Background="{Binding VisorColor, Converter={StaticResource HexColorToBrushConverter}}"/>
-                                            <Button Content="..." Width="28" Click="PickVisorColorButton_Click" Tag="{Binding}" CommandParameter="Start" Margin="0,0,12,0"/>
-                                            <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Opacity]}" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                            <Slider Value="{Binding VisorOpacity}" Minimum="0" Maximum="1" Width="100" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                            <TextBlock Text="{Binding VisorOpacity, StringFormat={}{0:P0}}" VerticalAlignment="Center" Width="42"/>
-                                        </StackPanel>
-                                        <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
-                                            <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.End]}" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                            <Border Width="20" Height="20" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="1" Margin="0,0,4,0"
-                                                    Background="{Binding VisorEndColor, Converter={StaticResource HexColorToBrushConverter}}"/>
-                                            <Button Content="..." Width="28" Click="PickVisorColorButton_Click" Tag="{Binding}" CommandParameter="End" Margin="0,0,12,0"/>
-                                            <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Opacity]}" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                            <Slider Value="{Binding VisorEndOpacity}" Minimum="0" Maximum="1" Width="100" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                            <TextBlock Text="{Binding VisorEndOpacity, StringFormat={}{0:P0}}" VerticalAlignment="Center" Width="42"/>
-                                        </StackPanel>
-                                        <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
-                                            <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Height]}" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                            <Slider Value="{Binding VisorCoverage}" Minimum="0" Maximum="1" Width="100" VerticalAlignment="Center" Margin="0,0,12,0"/>
-                                            <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Curve]}" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                            <Slider Value="{Binding VisorCurve}" Minimum="0" Maximum="1" Width="100" VerticalAlignment="Center"/>
-                                        </StackPanel>
-                                        <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
-                                            <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Scratches]}" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                            <Slider Value="{Binding VisorScratches}" Minimum="0" Maximum="1" Width="80" VerticalAlignment="Center" Margin="0,0,12,0"/>
-                                            <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Dirt]}" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                            <Slider Value="{Binding VisorDirt}" Minimum="0" Maximum="1" Width="80" VerticalAlignment="Center" Margin="0,0,12,0"/>
-                                            <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Bubbles]}" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                            <Slider Value="{Binding VisorBubbles}" Minimum="0" Maximum="1" Width="80" VerticalAlignment="Center" Margin="0,0,12,0"/>
-                                            <Button Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.NewSeed]}" Click="NewVisorSeedButton_Click" Tag="{Binding}" ToolTip="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.NewSeedTooltip]}"/>
-                                        </StackPanel>
-                                        <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
-                                            <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Size]}" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                            <Slider Value="{Binding VisorSize}" Minimum="0.3" Maximum="3" Width="80" VerticalAlignment="Center" Margin="0,0,12,0"/>
-                                            <TextBlock Text="X:" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                            <Slider Value="{Binding VisorOffsetX}" Minimum="-0.3" Maximum="0.3" Width="70" VerticalAlignment="Center" Margin="0,0,12,0"/>
-                                            <TextBlock Text="Y:" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                            <Slider Value="{Binding VisorOffsetY}" Minimum="-0.3" Maximum="0.3" Width="70" VerticalAlignment="Center" Margin="0,0,12,0"/>
-                                            <TextBlock Text="Z:" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                            <Slider Value="{Binding VisorOffsetZ}" Minimum="-0.3" Maximum="0.3" Width="70" VerticalAlignment="Center"/>
-                                        </StackPanel>
-                                        <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
-                                            <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Text]}" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                            <TextBox Text="{Binding VisorText, UpdateSourceTrigger=PropertyChanged}" Width="140" MaxLength="63" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                            <Border Width="20" Height="20" BorderBrush="Gray" BorderThickness="1" Margin="0,0,4,0"
-                                                    Background="{Binding VisorTextColor, Converter={StaticResource HexColorToBrushConverter}}"/>
-                                            <Button Content="..." Width="28" Click="PickVisorColorButton_Click" Tag="{Binding}" CommandParameter="Text" Margin="0,0,12,0"/>
-                                            <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Opacity]}" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                            <Slider Value="{Binding VisorTextOpacity}" Minimum="0" Maximum="1" Width="70" VerticalAlignment="Center" Margin="0,0,12,0"/>
-                                            <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.TextSize]}" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                            <Slider Value="{Binding VisorTextSize}" Minimum="0" Maximum="1" Width="70" VerticalAlignment="Center" Margin="0,0,12,0"/>
-                                            <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.TextBlur]}" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                            <Slider Value="{Binding VisorTextBlur}" Minimum="0" Maximum="1" Width="70" VerticalAlignment="Center"/>
-                                        </StackPanel>
-                                        <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
-                                            <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.TextFont]}" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                            <ComboBox ItemsSource="{x:Static Fonts.SystemFontFamilies}" Text="{Binding VisorTextFont, UpdateSourceTrigger=PropertyChanged}" IsEditable="True" Width="180" VerticalAlignment="Center" Margin="0,0,12,0"/>
-                                            <CheckBox Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.TextBold]}" IsChecked="{Binding VisorTextBold}" VerticalAlignment="Center" Margin="0,0,12,0"/>
-                                            <CheckBox Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.TextItalic]}" IsChecked="{Binding VisorTextItalic}" VerticalAlignment="Center"/>
-                                        </StackPanel>
-                                        <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Hint]}" Opacity="0.7" TextWrapping="Wrap" Margin="0,4,0,0"/>
-                                    </StackPanel>
+									<StackPanel Grid.Column="0" Orientation="Vertical" Grid.IsSharedSizeScope="True"
+												Visibility="{Binding SourceType, Converter={StaticResource SourceTypeVisibilityConverter}, ConverterParameter=Visor}">
+										<!-- Helmet library -->
+										<StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+											<TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Helmet.Library]}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+											<ComboBox Width="200" IsEditable="True" Margin="0,0,6,0"
+													  ItemsSource="{Binding DataContext.HelmetLibrary, RelativeSource={RelativeSource AncestorType=Window}}"
+													  ToolTip="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Tip.Library]}"/>
+											<Button Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Helmet.Load]}" Click="HelmetLoadButton_Click" Tag="{Binding}" Margin="0,0,4,0"/>
+											<Button Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Helmet.Save]}" Click="HelmetSaveButton_Click" Tag="{Binding}" Margin="0,0,4,0"/>
+											<Button Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Helmet.Delete]}" Click="HelmetDeleteButton_Click" Tag="{Binding}"/>
+										</StackPanel>
+
+										<Grid>
+											<Grid.ColumnDefinitions>
+												<ColumnDefinition Width="*"/>
+												<ColumnDefinition Width="12"/>
+												<ColumnDefinition Width="*"/>
+											</Grid.ColumnDefinitions>
+
+											<!-- Left column -->
+											<StackPanel Grid.Column="0">
+												<GroupBox Header="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Group.Glass]}" Padding="6" Margin="0,0,0,8">
+													<Grid>
+														<Grid.ColumnDefinitions>
+															<ColumnDefinition Width="Auto" SharedSizeGroup="VisorLabel"/>
+															<ColumnDefinition Width="*"/>
+															<ColumnDefinition Width="46"/>
+														</Grid.ColumnDefinitions>
+														<Grid.RowDefinitions>
+															<RowDefinition Height="Auto"/>
+															<RowDefinition Height="Auto"/>
+														</Grid.RowDefinitions>
+														<TextBlock Grid.Row="0" Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.End]}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+														<StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Margin="0,2">
+															<Border Width="22" Height="22" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="1" Margin="0,0,4,0"
+																	Background="{Binding VisorEndColor, Converter={StaticResource HexColorToBrushConverter}}"
+																	ToolTip="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Tip.TintColor]}"/>
+															<Button Content="…" Width="32" Click="PickVisorColorButton_Click" Tag="{Binding}" CommandParameter="End"
+																	ToolTip="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Tip.TintColor]}"/>
+														</StackPanel>
+														<TextBlock Grid.Row="1" Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Opacity]}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+														<Slider Grid.Row="1" Grid.Column="1" Value="{Binding VisorEndOpacity}" Minimum="0" Maximum="1" VerticalAlignment="Center" Margin="0,2"
+																ToolTip="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Tip.TintColor]}"/>
+														<TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding VisorEndOpacity, StringFormat={}{0:P0}}" VerticalAlignment="Center" TextAlignment="Right"/>
+													</Grid>
+												</GroupBox>
+
+												<GroupBox Header="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Group.Strip]}" Padding="6" Margin="0,0,0,8">
+													<Grid>
+														<Grid.ColumnDefinitions>
+															<ColumnDefinition Width="Auto" SharedSizeGroup="VisorLabel"/>
+															<ColumnDefinition Width="*"/>
+															<ColumnDefinition Width="46"/>
+														</Grid.ColumnDefinitions>
+														<Grid.RowDefinitions>
+															<RowDefinition Height="Auto"/>
+															<RowDefinition Height="Auto"/>
+															<RowDefinition Height="Auto"/>
+															<RowDefinition Height="Auto"/>
+														</Grid.RowDefinitions>
+														<TextBlock Grid.Row="0" Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Color]}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+														<StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Margin="0,2">
+															<Border Width="22" Height="22" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="1" Margin="0,0,4,0"
+																	Background="{Binding VisorColor, Converter={StaticResource HexColorToBrushConverter}}"
+																	ToolTip="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Tip.SunColor]}"/>
+															<Button Content="…" Width="32" Click="PickVisorColorButton_Click" Tag="{Binding}" CommandParameter="Start"
+																	ToolTip="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Tip.SunColor]}"/>
+														</StackPanel>
+														<TextBlock Grid.Row="1" Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Opacity]}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+														<Slider Grid.Row="1" Grid.Column="1" Value="{Binding VisorOpacity}" Minimum="0" Maximum="1" VerticalAlignment="Center" Margin="0,2"
+																ToolTip="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Tip.SunColor]}"/>
+														<TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding VisorOpacity, StringFormat={}{0:P0}}" VerticalAlignment="Center" TextAlignment="Right"/>
+														<TextBlock Grid.Row="2" Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Height]}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+														<Slider Grid.Row="2" Grid.Column="1" Value="{Binding VisorCoverage}" Minimum="0" Maximum="1" VerticalAlignment="Center" Margin="0,2"
+																ToolTip="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Tip.StripHeight]}"/>
+														<TextBlock Grid.Row="2" Grid.Column="2" Text="{Binding VisorCoverage, StringFormat={}{0:P0}}" VerticalAlignment="Center" TextAlignment="Right"/>
+														<TextBlock Grid.Row="3" Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Curve]}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+														<Slider Grid.Row="3" Grid.Column="1" Value="{Binding VisorCurve}" Minimum="0" Maximum="1" VerticalAlignment="Center" Margin="0,2"
+																ToolTip="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Tip.StripCurve]}"/>
+														<TextBlock Grid.Row="3" Grid.Column="2" Text="{Binding VisorCurve, StringFormat={}{0:P0}}" VerticalAlignment="Center" TextAlignment="Right"/>
+													</Grid>
+												</GroupBox>
+
+												<GroupBox Header="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Group.Wear]}" Padding="6" Margin="0,0,0,8">
+													<Grid>
+														<Grid.ColumnDefinitions>
+															<ColumnDefinition Width="Auto" SharedSizeGroup="VisorLabel"/>
+															<ColumnDefinition Width="*"/>
+															<ColumnDefinition Width="46"/>
+														</Grid.ColumnDefinitions>
+														<Grid.RowDefinitions>
+															<RowDefinition Height="Auto"/>
+															<RowDefinition Height="Auto"/>
+															<RowDefinition Height="Auto"/>
+															<RowDefinition Height="Auto"/>
+														</Grid.RowDefinitions>
+														<TextBlock Grid.Row="0" Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Scratches]}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+														<Slider Grid.Row="0" Grid.Column="1" Value="{Binding VisorScratches}" Minimum="0" Maximum="1" VerticalAlignment="Center" Margin="0,2"
+																ToolTip="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Tip.Scratches]}"/>
+														<TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding VisorScratches, StringFormat={}{0:P0}}" VerticalAlignment="Center" TextAlignment="Right"/>
+														<TextBlock Grid.Row="1" Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Dirt]}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+														<Slider Grid.Row="1" Grid.Column="1" Value="{Binding VisorDirt}" Minimum="0" Maximum="1" VerticalAlignment="Center" Margin="0,2"
+																ToolTip="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Tip.Dirt]}"/>
+														<TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding VisorDirt, StringFormat={}{0:P0}}" VerticalAlignment="Center" TextAlignment="Right"/>
+														<TextBlock Grid.Row="2" Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Bubbles]}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+														<Slider Grid.Row="2" Grid.Column="1" Value="{Binding VisorBubbles}" Minimum="0" Maximum="1" VerticalAlignment="Center" Margin="0,2"
+																ToolTip="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Tip.Bubbles]}"/>
+														<TextBlock Grid.Row="2" Grid.Column="2" Text="{Binding VisorBubbles, StringFormat={}{0:P0}}" VerticalAlignment="Center" TextAlignment="Right"/>
+														<Button Grid.Row="3" Grid.Column="1" HorizontalAlignment="Left" Margin="0,4,0,0"
+																Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.NewSeed]}" Click="NewVisorSeedButton_Click" Tag="{Binding}"
+																ToolTip="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.NewSeedTooltip]}"/>
+													</Grid>
+												</GroupBox>
+											</StackPanel>
+
+											<!-- Right column -->
+											<StackPanel Grid.Column="2">
+												<GroupBox Header="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Group.Fit]}" Padding="6" Margin="0,0,0,8">
+													<Grid>
+														<Grid.ColumnDefinitions>
+															<ColumnDefinition Width="Auto" SharedSizeGroup="VisorLabel"/>
+															<ColumnDefinition Width="*"/>
+															<ColumnDefinition Width="46"/>
+														</Grid.ColumnDefinitions>
+														<Grid.RowDefinitions>
+															<RowDefinition Height="Auto"/>
+															<RowDefinition Height="Auto"/>
+															<RowDefinition Height="Auto"/>
+															<RowDefinition Height="Auto"/>
+														</Grid.RowDefinitions>
+														<TextBlock Grid.Row="0" Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.SizeOnly]}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+														<Slider Grid.Row="0" Grid.Column="1" Value="{Binding VisorSize}" Minimum="0.3" Maximum="3" VerticalAlignment="Center" Margin="0,2"
+																ToolTip="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Tip.Size]}"/>
+														<TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding VisorSize, StringFormat={}{0:0.00}×}" VerticalAlignment="Center" TextAlignment="Right"/>
+														<TextBlock Grid.Row="1" Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.OffsetX]}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+														<Slider Grid.Row="1" Grid.Column="1" Value="{Binding VisorOffsetX}" Minimum="-0.3" Maximum="0.3" VerticalAlignment="Center" Margin="0,2"
+																ToolTip="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Tip.OffsetX]}"/>
+														<TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding VisorOffsetX, StringFormat={}{0:0.00} m}" VerticalAlignment="Center" TextAlignment="Right"/>
+														<TextBlock Grid.Row="2" Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.OffsetY]}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+														<Slider Grid.Row="2" Grid.Column="1" Value="{Binding VisorOffsetY}" Minimum="-0.3" Maximum="0.3" VerticalAlignment="Center" Margin="0,2"
+																ToolTip="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Tip.OffsetY]}"/>
+														<TextBlock Grid.Row="2" Grid.Column="2" Text="{Binding VisorOffsetY, StringFormat={}{0:0.00} m}" VerticalAlignment="Center" TextAlignment="Right"/>
+														<TextBlock Grid.Row="3" Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.OffsetZ]}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+														<Slider Grid.Row="3" Grid.Column="1" Value="{Binding VisorOffsetZ}" Minimum="-0.3" Maximum="0.3" VerticalAlignment="Center" Margin="0,2"
+																ToolTip="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Tip.OffsetZ]}"/>
+														<TextBlock Grid.Row="3" Grid.Column="2" Text="{Binding VisorOffsetZ, StringFormat={}{0:0.00} m}" VerticalAlignment="Center" TextAlignment="Right"/>
+													</Grid>
+												</GroupBox>
+
+												<GroupBox Header="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Group.Open]}" Padding="6" Margin="0,0,0,8">
+													<Grid>
+														<Grid.ColumnDefinitions>
+															<ColumnDefinition Width="Auto" SharedSizeGroup="VisorLabel"/>
+															<ColumnDefinition Width="*"/>
+															<ColumnDefinition Width="46"/>
+														</Grid.ColumnDefinitions>
+														<Grid.RowDefinitions>
+															<RowDefinition Height="Auto"/>
+															<RowDefinition Height="Auto"/>
+														</Grid.RowDefinitions>
+														<TextBlock Grid.Row="0" Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.OpenAngle]}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+														<Slider Grid.Row="0" Grid.Column="1" Value="{Binding VisorOpenAngle}" Minimum="10" Maximum="120" VerticalAlignment="Center" Margin="0,2"
+																ToolTip="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Tip.OpenAngle]}"/>
+														<TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding VisorOpenAngle, StringFormat={}{0:0}°}" VerticalAlignment="Center" TextAlignment="Right"/>
+														<TextBlock Grid.Row="1" Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.EdgeCurve]}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+														<Slider Grid.Row="1" Grid.Column="1" Value="{Binding VisorEdgeCurve}" Minimum="0" Maximum="1.5" VerticalAlignment="Center" Margin="0,2"
+																ToolTip="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Tip.EdgeCurve]}"/>
+														<TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding VisorEdgeCurve, StringFormat={}{0:0.00}}" VerticalAlignment="Center" TextAlignment="Right"/>
+													</Grid>
+												</GroupBox>
+
+												<GroupBox Header="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Group.Text]}" Padding="6" Margin="0,0,0,8">
+													<Grid>
+														<Grid.ColumnDefinitions>
+															<ColumnDefinition Width="Auto" SharedSizeGroup="VisorLabel"/>
+															<ColumnDefinition Width="*"/>
+															<ColumnDefinition Width="46"/>
+														</Grid.ColumnDefinitions>
+														<Grid.RowDefinitions>
+															<RowDefinition Height="Auto"/>
+															<RowDefinition Height="Auto"/>
+															<RowDefinition Height="Auto"/>
+															<RowDefinition Height="Auto"/>
+															<RowDefinition Height="Auto"/>
+															<RowDefinition Height="Auto"/>
+														</Grid.RowDefinitions>
+														<TextBlock Grid.Row="0" Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Text]}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+														<StackPanel Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="2" Orientation="Horizontal" Margin="0,2">
+															<TextBox Text="{Binding VisorText, UpdateSourceTrigger=PropertyChanged}" Width="150" MaxLength="63" VerticalAlignment="Center" Margin="0,0,6,0"
+																	 ToolTip="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Tip.Text]}"/>
+															<Border Width="22" Height="22" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="1" Margin="0,0,4,0"
+																	Background="{Binding VisorTextColor, Converter={StaticResource HexColorToBrushConverter}}"
+																	ToolTip="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Tip.TextColor]}"/>
+															<Button Content="…" Width="32" Click="PickVisorColorButton_Click" Tag="{Binding}" CommandParameter="Text"
+																	ToolTip="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Tip.TextColor]}"/>
+														</StackPanel>
+														<TextBlock Grid.Row="1" Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.TextFont]}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+														<ComboBox Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" ItemsSource="{x:Static Fonts.SystemFontFamilies}" Text="{Binding VisorTextFont, UpdateSourceTrigger=PropertyChanged}" IsEditable="True" Margin="0,2"
+																  ToolTip="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Tip.TextFont]}"/>
+														<StackPanel Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Orientation="Horizontal" Margin="0,2">
+															<CheckBox Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.TextBold]}" IsChecked="{Binding VisorTextBold}" Margin="0,0,12,0"
+																	  ToolTip="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Tip.TextBold]}"/>
+															<CheckBox Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.TextItalic]}" IsChecked="{Binding VisorTextItalic}"
+																	  ToolTip="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Tip.TextItalic]}"/>
+														</StackPanel>
+														<TextBlock Grid.Row="3" Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Opacity]}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+														<Slider Grid.Row="3" Grid.Column="1" Value="{Binding VisorTextOpacity}" Minimum="0" Maximum="1" VerticalAlignment="Center" Margin="0,2"
+																ToolTip="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Tip.TextOpacity]}"/>
+														<TextBlock Grid.Row="3" Grid.Column="2" Text="{Binding VisorTextOpacity, StringFormat={}{0:P0}}" VerticalAlignment="Center" TextAlignment="Right"/>
+														<TextBlock Grid.Row="4" Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.TextSize]}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+														<Slider Grid.Row="4" Grid.Column="1" Value="{Binding VisorTextSize}" Minimum="0" Maximum="1" VerticalAlignment="Center" Margin="0,2"
+																ToolTip="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Tip.TextSize]}"/>
+														<TextBlock Grid.Row="4" Grid.Column="2" Text="{Binding VisorTextSize, StringFormat={}{0:P0}}" VerticalAlignment="Center" TextAlignment="Right"/>
+														<TextBlock Grid.Row="5" Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.TextBlur]}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+														<Slider Grid.Row="5" Grid.Column="1" Value="{Binding VisorTextBlur}" Minimum="0" Maximum="1" VerticalAlignment="Center" Margin="0,2"
+																ToolTip="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Tip.TextBlur]}"/>
+														<TextBlock Grid.Row="5" Grid.Column="2" Text="{Binding VisorTextBlur, StringFormat={}{0:P0}}" VerticalAlignment="Center" TextAlignment="Right"/>
+													</Grid>
+												</GroupBox>
+											</StackPanel>
+										</Grid>
+
+										<TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Visor.Hint]}" Opacity="0.7" TextWrapping="Wrap" Margin="0,2,0,0"/>
+									</StackPanel>
                                 </Grid>
 
-                                <Grid Margin="0,8,0,0" IsEnabled="{Binding IsLocked, Converter={StaticResource InverseBooleanConverter}}">
+                                <Grid Margin="0,8,0,0" IsEnabled="{Binding IsLocked, Converter={StaticResource InverseBooleanConverter}}" Visibility="{Binding SourceType, Converter={StaticResource SourceTypeVisibilityConverter}, ConverterParameter=!Visor}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="40"/>
                                         <ColumnDefinition Width="Auto"/>
@@ -291,7 +442,7 @@
                                     <RepeatButton Grid.Column="13" Content="+" Width="28" Click="NudgeStepButton_Click" Tag="PositionZ,0.005"/>
                                 </Grid>
 
-                                <Grid Margin="0,4,0,0" IsEnabled="{Binding IsLocked, Converter={StaticResource InverseBooleanConverter}}">
+                                <Grid Margin="0,4,0,0" IsEnabled="{Binding IsLocked, Converter={StaticResource InverseBooleanConverter}}" Visibility="{Binding SourceType, Converter={StaticResource SourceTypeVisibilityConverter}, ConverterParameter=!Visor}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="40"/>
                                         <ColumnDefinition Width="Auto"/>
@@ -322,7 +473,7 @@
                                     <RepeatButton Grid.Column="13" Content="+" Width="28" Click="NudgeStepButton_Click" Tag="RollDeg,0.5"/>
                                 </Grid>
 
-                                <Grid Margin="0,4,0,0" IsEnabled="{Binding IsLocked, Converter={StaticResource InverseBooleanConverter}}">
+                                <Grid Margin="0,4,0,0" IsEnabled="{Binding IsLocked, Converter={StaticResource InverseBooleanConverter}}" Visibility="{Binding SourceType, Converter={StaticResource SourceTypeVisibilityConverter}, ConverterParameter=!Visor}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="40"/>
                                         <ColumnDefinition Width="Auto"/>
@@ -343,7 +494,7 @@
                                 </Grid>
 
                                 <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                                    <CheckBox Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.HeadLocked]}" IsChecked="{Binding HeadLocked}" Margin="0,0,16,0"/>
+                                    <CheckBox Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.HeadLocked]}" Visibility="{Binding SourceType, Converter={StaticResource SourceTypeVisibilityConverter}, ConverterParameter=!Visor}" IsChecked="{Binding HeadLocked}" Margin="0,0,16,0"/>
                                     <CheckBox Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.OpaqueBackground]}" IsChecked="{Binding OpaqueBackground}"/>
                                 </StackPanel>
                             </StackPanel>

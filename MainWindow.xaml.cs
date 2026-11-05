@@ -1845,6 +1845,8 @@ namespace Donutz_VR_HUD
                 TextOpacity = Math.Clamp(panel.VisorTextOpacity, 0f, 1f),
                 TextSize = Math.Clamp(panel.VisorTextSize, 0f, 1f),
                 TextBlur = Math.Clamp(panel.VisorTextBlur, 0f, 1f),
+                OpenAngleDeg = Math.Clamp(panel.VisorOpenAngle, 10f, 120f),
+                EdgeCurve = Math.Clamp(panel.VisorEdgeCurve, 0f, 1.5f),
                 Text = (panel.VisorText ?? string.Empty).Length > 63 ? panel.VisorText![..63] : panel.VisorText ?? string.Empty,
                 FontName = (panel.VisorTextFont ?? "Arial").Length > 31 ? panel.VisorTextFont![..31] : panel.VisorTextFont ?? "Arial",
                 Bold = panel.VisorTextBold,
@@ -1997,6 +1999,8 @@ namespace Donutz_VR_HUD
                 case nameof(OverlayPanel.VisorTextOpacity):
                 case nameof(OverlayPanel.VisorTextSize):
                 case nameof(OverlayPanel.VisorTextBlur):
+                case nameof(OverlayPanel.VisorOpenAngle):
+                case nameof(OverlayPanel.VisorEdgeCurve):
                 case nameof(OverlayPanel.VisorTextFont):
                 case nameof(OverlayPanel.VisorTextBold):
                 case nameof(OverlayPanel.VisorTextItalic):

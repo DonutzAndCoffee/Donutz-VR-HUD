@@ -130,6 +130,12 @@ namespace Donutz_VR_HUD.Models
         private float _visorTextBlur = 0.4f;
         public float VisorTextBlur { get => _visorTextBlur; set => Set(ref _visorTextBlur, value); }
 
+        private float _visorOpenAngle = 58f;
+        public float VisorOpenAngle { get => _visorOpenAngle; set => Set(ref _visorOpenAngle, value); }
+
+        private float _visorEdgeCurve = 0.75f;
+        public float VisorEdgeCurve { get => _visorEdgeCurve; set => Set(ref _visorEdgeCurve, value); }
+
         private string _visorTextFont = "Arial";
         public string VisorTextFont { get => _visorTextFont; set => Set(ref _visorTextFont, string.IsNullOrWhiteSpace(value) ? "Arial" : value); }
 

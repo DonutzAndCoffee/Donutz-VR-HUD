@@ -52,6 +52,8 @@ namespace Donutz_VR_HUD.Settings
         public float VisorTextOpacity { get; set; } = 0.85f;
         public float VisorTextSize { get; set; } = 0.4f;
         public float VisorTextBlur { get; set; } = 0.4f;
+        public float VisorOpenAngle { get; set; } = 58f;
+        public float VisorEdgeCurve { get; set; } = 0.75f;
         public string VisorTextFont { get; set; } = "Arial";
         public bool VisorTextBold { get; set; } = true;
         public bool VisorTextItalic { get; set; }
@@ -78,6 +80,8 @@ namespace Donutz_VR_HUD.Settings
             VisorTextOpacity = panel.VisorTextOpacity,
             VisorTextSize = panel.VisorTextSize,
             VisorTextBlur = panel.VisorTextBlur,
+            VisorOpenAngle = panel.VisorOpenAngle,
+            VisorEdgeCurve = panel.VisorEdgeCurve,
             VisorTextFont = panel.VisorTextFont,
             VisorTextBold = panel.VisorTextBold,
             VisorTextItalic = panel.VisorTextItalic,
@@ -141,6 +145,8 @@ namespace Donutz_VR_HUD.Settings
                 VisorTextOpacity = VisorTextOpacity,
                 VisorTextSize = VisorTextSize,
                 VisorTextBlur = VisorTextBlur,
+                VisorOpenAngle = VisorOpenAngle,
+                VisorEdgeCurve = VisorEdgeCurve,
                 VisorTextFont = VisorTextFont ?? "Arial",
                 VisorTextBold = VisorTextBold,
                 VisorTextItalic = VisorTextItalic

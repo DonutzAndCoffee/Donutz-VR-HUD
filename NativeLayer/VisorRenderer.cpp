@@ -32,10 +32,10 @@ cbuffer VisorConstants : register(b0)
 	float4 sunColor; // rgb, opacity
 	float4 tintColor;// rgb, opacity
 	float4 shape;    // stripHeight, stripCurve, scratches, dirt
-	float4 misc;     // bubbles, seed (0..65535), unused, unused
+	float4 misc;     // bubbles, seed (0..65535), openAmount (0 closed .. 1 open), unused
 	float4 geom;     // shell center offset xyz (head frame), size multiplier
 	float4 textColor;// rgb, opacity
-	float4 textGeom; // height (deg), blur (0..1), hasText, unused
+	float4 textGeom; // height (deg), blur (0..1), hasText, open angle (deg)
 };
 
 Texture2D<float> textTex : register(t0);
@@ -89,9 +89,26 @@ float4 PSMain(VsOut i) : SV_Target
 {
 	float3 dirEye = normalize(float3(lerp(fovTan.x, fovTan.y, i.uv.x), lerp(fovTan.z, fovTan.w, i.uv.y), -1.0));
 	float3x3 eyeToHead = float3x3(eyeRow0.xyz, eyeRow1.xyz, eyeRow2.xyz);
-	float3 d = normalize(mul(eyeToHead, dirEye));
+	float3 dHead = normalize(mul(eyeToHead, dirEye));
+	float3 d = dHead;
 	float3 o = float3(eyeRow0.w, eyeRow1.w, eyeRow2.w) - geom.xyz;
 	float3 radii = kRadii * max(geom.w, 0.2);
+	float3 up = normalize(upHead.xyz);
+
+	// Visor hinge: opening pitches the shell up around the side pivots.
+	// The ray is transformed into the rotated visor frame instead.
+	float openA = saturate(misc.z);
+	if (openA > 0.0)
+	{
+		float ang = radians(textGeom.w) * openA;
+		float cs = cos(ang);
+		float sn = sin(ang);
+		float3 pivot = float3(0.0, 0.02, 0.03) * max(geom.w, 0.2);
+		float3 rel = o - pivot;
+		o = pivot + float3(rel.x, rel.y * cs + rel.z * sn, -rel.y * sn + rel.z * cs);
+		d = float3(d.x, d.y * cs + d.z * sn, -d.y * sn + d.z * cs);
+		up = float3(up.x, up.y * cs + up.z * sn, -up.y * sn + up.z * cs);
+	}
 
 	// Ray vs. ellipsoid (origin inside -> take the far root).
 	float3 os = o / radii;
@@ -112,7 +129,14 @@ float4 PSMain(VsOut i) : SV_Target
 	float2 q = float2(az, el);
 	float pw = max(length(fwidth(q)), 1e-4);
 
-	float3 up = normalize(upHead.xyz);
+	// The glass only covers the eyeport: bounded at the bottom and sides.
+	// The lower edge rises towards the side pivots (like a real visor). When
+// raised, this keeps the edge from arching down steeply to the sides.
+float sinAz = sin(radians(clamp(az, -90.0, 90.0)));
+float bottomEdge = -52.0 + textGeom.w * 0.75 * sinAz * sinAz;
+	float sideFade = 1.0 - smoothstep(100.0, 100.0 + max(pw, 0.5), abs(az));
+	float glassMask = smoothstep(bottomEdge - pw, bottomEdge + pw, el) * sideFade;
+
 	float4 acc = 0;
 
 	// Glass tint, darker at glancing angles (Fresnel-like).
@@ -267,6 +291,34 @@ float4 PSMain(VsOut i) : SV_Target
 				acc.a = saturate(acc.a + s * 0.15);
 			}
 		}
+	}
+
+	// Slight breath fog creeping up from the lower edge (scaled with dirt).
+	float fog = (1.0 - smoothstep(bottomEdge, bottomEdge + 18.0, el)) * (0.04 + 0.12 * dirt);
+	Over(acc, float3(0.85, 0.87, 0.9), fog * (0.7 + 0.3 * Rand4(int2(floor(q / 1.5)), 7u).x));
+
+	// Polished lower edge of the glass: thin bright line over a dark bevel.
+	float edgeDist = el - bottomEdge;
+	float edgeW = max(0.25, pw);
+	float bevel = exp(-pow((edgeDist - 0.9) / (edgeW * 2.0), 2.0));
+	float rimLine = exp(-pow((edgeDist - 0.25) / edgeW, 2.0));
+	// Raised visor: the edge is seen edge-on, so the glass thickness shows as a bright band.
+float thick = openA * exp(-pow((edgeDist - 1.6) / (edgeW * 3.0), 2.0));
+Over(acc, float3(0.05, 0.05, 0.06), bevel * 0.55);
+Over(acc, lerp(float3(0.7, 0.75, 0.8), tintColor.rgb, 0.4), thick * 0.45);
+	acc.rgb += rimLine * (0.35 + 0.4 * openA) * (0.5 + 0.5 * saturate(dot(refl, up)));
+	acc.a = saturate(acc.a + rimLine * 0.3);
+
+	acc *= glassMask * sideFade;
+
+	// Helmet eyeport (padded shell edge) framing the view, fixed to the head.
+	float azH = degrees(atan2(dHead.x, -dHead.z));
+	float elH = degrees(atan2(dHead.y, length(dHead.xz)));
+	float port = max(smoothstep(80.0, 98.0, abs(azH)), max(smoothstep(46.0, 60.0, elH), smoothstep(-56.0, -70.0, elH)));
+	if (port > 0.0)
+	{
+		float3 padColor = float3(0.02, 0.02, 0.025) + 0.03 * Rand4(int2(floor(float2(azH, elH) * 2.0)), 8u).x;
+		Over(acc, padColor, port * 0.92);
 	}
 
 	acc.rgb = min(acc.rgb, 1.0);
@@ -548,7 +600,8 @@ namespace VisorRenderer
 		const IpcServer::VisorParams& params,
 		const XrPosef& headPose,
 		const XrPosef& eyePose,
-		const XrFovf& fov)
+		const XrFovf& fov,
+		float openAmount)
 	{
 		if (device == nullptr || context == nullptr || target == nullptr || width == 0 || height == 0)
 		{
@@ -613,6 +666,7 @@ namespace VisorRenderer
 		constants.shape[3] = params.dirt;
 		constants.misc[0] = params.bubbles;
 		constants.misc[1] = static_cast<float>(params.seed % 65536u);
+		constants.misc[2] = openAmount < 0.0f ? 0.0f : (openAmount > 1.0f ? 1.0f : openAmount);
 		constants.geom[0] = params.offsetX;
 		constants.geom[1] = params.offsetY;
 		constants.geom[2] = params.offsetZ;
@@ -634,6 +688,7 @@ namespace VisorRenderer
 		constants.textGeom[0] = 2.0f + 10.0f * params.textSize;
 		constants.textGeom[1] = params.textBlur;
 		constants.textGeom[2] = g_textSrv ? 1.0f : 0.0f;
+		constants.textGeom[3] = params.openAngleDeg > 0.0f ? (params.openAngleDeg < 120.0f ? params.openAngleDeg : 120.0f) : 68.0f;
 
 		ComPtr<ID3DDeviceContextState> previousState;
 		context1->SwapDeviceContextState(g_state.Get(), &previousState);

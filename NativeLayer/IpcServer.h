@@ -118,6 +118,10 @@ namespace IpcServer
 		wchar_t fontName[32];
 		uint8_t bold;
 		uint8_t italic;
+		// Hinge angle (degrees) of the fully opened visor.
+		float openAngleDeg;
+		// How much the lower edge rises towards the side pivots (0 = straight, ~1.5 = strong).
+		float edgeCurve;
 	};
 
 	struct SetVisorParamsPayload

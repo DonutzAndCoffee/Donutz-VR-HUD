@@ -32,7 +32,8 @@ namespace VisorRenderer
 		const IpcServer::VisorParams& params,
 		const XrPosef& headPose,
 		const XrPosef& eyePose,
-		const XrFovf& fov);
+		const XrFovf& fov,
+		float openAmount);
 
 	// Releases all GPU resources (e.g. on session destruction).
 	void Reset();

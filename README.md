@@ -49,11 +49,17 @@ The two components communicate via a local **named pipe IPC channel** (panel tra
 ## Installation (prebuilt release)
 
 1. Install the [.NET 10 Desktop Runtime (x64)](https://dotnet.microsoft.com/download/dotnet/10.0) if not already present.
-2. Download `DonutzVRHUD-v1.3.0-win-x64.zip` from the [Releases](https://github.com/DonutzAndCoffee/Donutz-VR-HUD/releases) page and extract it to a permanent folder (the OpenXR layer is registered from this location).
+2. Download `DonutzVRHUD-v1.4.0-win-x64.zip` from the [Releases](https://github.com/DonutzAndCoffee/Donutz-VR-HUD/releases) page and extract it to a permanent folder (the OpenXR layer is registered from this location).
 3. Start `Donutz VR HUD.exe` and use the layer registration button in the app to register the OpenXR API layer (requires administrator rights).
 4. Start your OpenXR sim (e.g. iRacing) in VR.
 
 ## Changelog
+
+### v1.4.0
+- Helmet visor can now be opened/closed with a short animation (wheel button or "Toggle visor"); when open, the raised lower glass edge stays visible at the top of the view.
+- More realistic visor: polished lower glass edge with light reflection, padded helmet eyeport framing the view, slight fog at the lower edge.
+- New visor settings: open angle (default 58°) and edge curve.
+- Visor configuration reorganized into groups (Glass, Sun strip, Wear & dirt, Fit, Open visor, Strip lettering) with value read-outs and detailed tooltips for every option; panel position/size fields are hidden for helmet visors.
 
 ### v1.3.0
 - Web dashboard URL field now offers a dropdown of locally installed SimHub dashboards (read from SimHub's DashTemplates folder), so URLs no longer need to be copied manually.

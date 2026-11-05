@@ -75,6 +75,8 @@ namespace Donutz_VR_HUD.Settings
             panel.VisorTextOpacity = source.VisorTextOpacity;
             panel.VisorTextSize = source.VisorTextSize;
             panel.VisorTextBlur = source.VisorTextBlur;
+            panel.VisorOpenAngle = source.VisorOpenAngle;
+            panel.VisorEdgeCurve = source.VisorEdgeCurve;
             panel.VisorTextFont = source.VisorTextFont ?? "Arial";
             panel.VisorTextBold = source.VisorTextBold;
             panel.VisorTextItalic = source.VisorTextItalic;

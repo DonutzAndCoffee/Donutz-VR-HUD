@@ -36,10 +36,13 @@ namespace Donutz_VR_HUD
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            if (value is PanelSourceType sourceType && parameter is string parameterText &&
-                Enum.TryParse<PanelSourceType>(parameterText, out var target))
+            if (value is PanelSourceType sourceType && parameter is string parameterText)
             {
-                return sourceType == target ? Visibility.Visible : Visibility.Collapsed;
+                var invert = parameterText.StartsWith('!');
+                if (Enum.TryParse<PanelSourceType>(parameterText.TrimStart('!'), out var target))
+                {
+                    return (sourceType == target) != invert ? Visibility.Visible : Visibility.Collapsed;
+                }
             }
 
             return Visibility.Collapsed;
