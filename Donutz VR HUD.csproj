@@ -41,6 +41,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Content Include="obj\visor_block.xaml.txt" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Resource Include="Assets\AppIcon.ico" />
     <Resource Include="Assets\AppIcon.png" />
   </ItemGroup>

@@ -33,30 +33,30 @@ namespace Donutz_VR_HUD.Settings
         public bool IsLocked { get; set; }
 
         public string ImagePath { get; set; } = string.Empty;
-        public string VisorColor { get; set; } = "#1A1A26";
-        public float VisorOpacity { get; set; } = 0.65f;
+        public string VisorColor { get; set; } = "#000000";
+        public float VisorOpacity { get; set; } = 0.68f;
         public string VisorEndColor { get; set; } = "#1A1A26";
-        public float VisorEndOpacity { get; set; }
-        public float VisorCoverage { get; set; } = 0.35f;
-        public float VisorCurve { get; set; } = 0.18f;
-        public float VisorScratches { get; set; } = 0.3f;
-        public float VisorDirt { get; set; } = 0.25f;
-        public float VisorBubbles { get; set; } = 0.15f;
+        public float VisorEndOpacity { get; set; } = 0.2f;
+        public float VisorCoverage { get; set; } = 0.58f;
+        public float VisorCurve { get; set; }
+        public float VisorScratches { get; set; } = 0.03f;
+        public float VisorDirt { get; set; }
+        public float VisorBubbles { get; set; } = 0.05f;
         public int VisorSeed { get; set; } = 1;
         public float VisorOffsetX { get; set; }
-        public float VisorOffsetY { get; set; }
-        public float VisorOffsetZ { get; set; }
-        public float VisorSize { get; set; } = 1f;
-        public string VisorText { get; set; } = string.Empty;
+        public float VisorOffsetY { get; set; } = -0.10f;
+        public float VisorOffsetZ { get; set; } = 0.24f;
+        public float VisorSize { get; set; } = 2.85f;
+        public string VisorText { get; set; } = "DONUTZ";
         public string VisorTextColor { get; set; } = "#FFFFFF";
-        public float VisorTextOpacity { get; set; } = 0.85f;
-        public float VisorTextSize { get; set; } = 0.4f;
-        public float VisorTextBlur { get; set; } = 0.4f;
-        public float VisorOpenAngle { get; set; } = 58f;
-        public float VisorEdgeCurve { get; set; } = 0.75f;
-        public string VisorTextFont { get; set; } = "Arial";
+        public float VisorTextOpacity { get; set; } = 0.09f;
+        public float VisorTextSize { get; set; } = 1f;
+        public float VisorTextBlur { get; set; } = 0.32f;
+        public float VisorOpenAngle { get; set; } = 59f;
+        public float VisorEdgeCurve { get; set; } = 0.18f;
+        public string VisorTextFont { get; set; } = "Bahnschrift";
         public bool VisorTextBold { get; set; } = true;
-        public bool VisorTextItalic { get; set; }
+        public bool VisorTextItalic { get; set; } = true;
 
         public static PanelSettings FromPanel(OverlayPanel panel) => new()
         {

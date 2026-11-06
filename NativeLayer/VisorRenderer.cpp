@@ -1,4 +1,4 @@
-#include "VisorRenderer.h"
+﻿#include "VisorRenderer.h"
 #include "Logging.h"
 
 #include <d3d11_1.h>
@@ -32,7 +32,7 @@ cbuffer VisorConstants : register(b0)
 	float4 sunColor; // rgb, opacity
 	float4 tintColor;// rgb, opacity
 	float4 shape;    // stripHeight, stripCurve, scratches, dirt
-	float4 misc;     // bubbles, seed (0..65535), openAmount (0 closed .. 1 open), unused
+	float4 misc;     // bubbles, seed (0..65535), openAmount (0 closed .. 1 open), edgeCurve
 	float4 geom;     // shell center offset xyz (head frame), size multiplier
 	float4 textColor;// rgb, opacity
 	float4 textGeom; // height (deg), blur (0..1), hasText, open angle (deg)
@@ -133,7 +133,7 @@ float4 PSMain(VsOut i) : SV_Target
 	// The lower edge rises towards the side pivots (like a real visor). When
 // raised, this keeps the edge from arching down steeply to the sides.
 float sinAz = sin(radians(clamp(az, -90.0, 90.0)));
-float bottomEdge = -52.0 + textGeom.w * 0.75 * sinAz * sinAz;
+float bottomEdge = -52.0 + textGeom.w * misc.w * sinAz * sinAz;
 	float sideFade = 1.0 - smoothstep(100.0, 100.0 + max(pw, 0.5), abs(az));
 	float glassMask = smoothstep(bottomEdge - pw, bottomEdge + pw, el) * sideFade;
 
@@ -667,6 +667,7 @@ namespace VisorRenderer
 		constants.misc[0] = params.bubbles;
 		constants.misc[1] = static_cast<float>(params.seed % 65536u);
 		constants.misc[2] = openAmount < 0.0f ? 0.0f : (openAmount > 1.0f ? 1.0f : openAmount);
+		constants.misc[3] = params.edgeCurve < 0.0f ? 0.0f : (params.edgeCurve > 1.5f ? 1.5f : params.edgeCurve);
 		constants.geom[0] = params.offsetX;
 		constants.geom[1] = params.offsetY;
 		constants.geom[2] = params.offsetZ;
