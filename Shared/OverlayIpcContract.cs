@@ -47,6 +47,13 @@ namespace Donutz_VR_HUD.Shared
         SetVisorParams = 6,
 
         /// <summary>
+        /// Client -> server: enables/configures the optional procedural 3D
+        /// housing (bezel + back shell) drawn around a panel's quad. See
+        /// NativeLayer/HousingRenderer.cpp.
+        /// </summary>
+        SetHousingParams = 7,
+
+        /// <summary>
         /// Server -> client: a VR controller grab ended, reporting the
         /// panel's final position/rotation so the app can update its
         /// <c>OverlayPanel</c> model and persist it. See
@@ -169,6 +176,23 @@ namespace Donutz_VR_HUD.Shared
         [MarshalAs(UnmanagedType.I1)] public bool Italic;
         public float OpenAngleDeg;
         public float EdgeCurve;
+    }
+
+    /// <summary>Client -> server. See <see cref="OverlayIpcMessageType.SetHousingParams"/>. Colors are 0..1 sRGB.</summary>
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    public struct SetHousingParamsMessage
+    {
+        public Guid PanelId;
+        [MarshalAs(UnmanagedType.I1)] public bool Enabled;
+
+        /// <summary>Housing variant; 0 = default bezel housing. Reserved for future variants.</summary>
+        public byte Style;
+        public float BezelWidthMm;
+        public float DepthMm;
+        public float ColorR, ColorG, ColorB;
+        public float Roughness;
+        public float Metallic;
+        public float CornerRadiusMm;
     }
 
     /// <summary>Server -> client. See <see cref="OverlayIpcMessageType.PanelTransformUpdated"/>.</summary>

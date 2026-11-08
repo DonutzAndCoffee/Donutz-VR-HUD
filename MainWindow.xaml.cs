@@ -1935,6 +1935,27 @@ namespace Donutz_VR_HUD
             }
         }
 
+        private void PickHousingColorButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not FrameworkElement { Tag: OverlayPanel panel })
+            {
+                return;
+            }
+
+            using var dialog = new System.Windows.Forms.ColorDialog
+            {
+                FullOpen = true,
+                AnyColor = true,
+                Color = ParseHexColor(panel.HousingColor)
+            };
+
+            if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+            {
+                var c = dialog.Color;
+                panel.HousingColor = $"#{c.R:X2}{c.G:X2}{c.B:X2}";
+            }
+        }
+
         private void Panel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
             if (sender is not OverlayPanel panel)
@@ -2021,6 +2042,16 @@ namespace Donutz_VR_HUD
                 case nameof(OverlayPanel.Name):
                     SaveSettings();
                     break;
+                case nameof(OverlayPanel.HousingEnabled):
+                case nameof(OverlayPanel.HousingBezelWidthMm):
+                case nameof(OverlayPanel.HousingDepthMm):
+                case nameof(OverlayPanel.HousingColor):
+                case nameof(OverlayPanel.HousingRoughness):
+                case nameof(OverlayPanel.HousingMetallic):
+                case nameof(OverlayPanel.HousingCornerRadiusMm):
+                    _ipcClient?.SetHousingParams(BuildHousingParams(panel));
+                    SaveSettings();
+                    break;
             }
         }
 
@@ -2036,6 +2067,24 @@ namespace Donutz_VR_HUD
                 panel.HeadLocked,
                 panel.OpaqueBackground,
                 nonInteractive: panel.SourceType == PanelSourceType.Visor);
+            _ipcClient?.SetHousingParams(BuildHousingParams(panel));
+        }
+
+        private static Shared.SetHousingParamsMessage BuildHousingParams(OverlayPanel panel)
+        {
+            var color = ParseHexColor(panel.HousingColor);
+            return new Shared.SetHousingParamsMessage
+            {
+                PanelId = panel.Id,
+                Enabled = panel.HousingEnabled && panel.SourceType != PanelSourceType.Visor,
+                Style = 0,
+                BezelWidthMm = Math.Clamp(panel.HousingBezelWidthMm, 1f, 100f),
+                DepthMm = Math.Clamp(panel.HousingDepthMm, 2f, 200f),
+                ColorR = color.R / 255f, ColorG = color.G / 255f, ColorB = color.B / 255f,
+                Roughness = Math.Clamp(panel.HousingRoughness, 0.05f, 1f),
+                Metallic = Math.Clamp(panel.HousingMetallic, 0f, 1f),
+                CornerRadiusMm = Math.Clamp(panel.HousingCornerRadiusMm, 0f, 50f),
+            };
         }
 
         private async Task RestartPanelSourceAsync(OverlayPanel panel)

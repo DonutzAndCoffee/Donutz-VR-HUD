@@ -355,6 +355,15 @@ namespace Donutz_VR_HUD.OpenXR
             Send(OverlayIpcMessageType.SetVisorParams, StructToBytes(message));
         }
 
+        /// <summary>
+        /// Enables/configures the optional 3D housing around a panel (see
+        /// NativeLayer/HousingRenderer.cpp).
+        /// </summary>
+        public void SetHousingParams(SetHousingParamsMessage message)
+        {
+            Send(OverlayIpcMessageType.SetHousingParams, StructToBytes(message));
+        }
+
         private void Send(OverlayIpcMessageType type, byte[] payload)
         {
             var pipe = _pipe;

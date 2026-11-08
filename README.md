@@ -21,6 +21,7 @@ The two components communicate via a local **named pipe IPC channel** (panel tra
   - Panel highlight overlays
   - Test pattern (for calibration)
 - Per-panel **head-locked** or **cockpit-fixed** placement, with optional opaque or alpha-blended background.
+- Optional per-panel **3D housing**: a bezel/case that adapts to the panel size (configurable bezel width, depth, color, roughness, metallic and corner size). It is lit only by the sim's own rendered image, so it automatically gets dark at night or in tunnels.
 - **VR controller interaction** (experimental): grab-and-move panels with the grip button and fine-nudge them with the thumbstick, using standard OpenXR actions — no SteamVR-specific SDK required, so it works with any OpenXR runtime.
 - **Profiles** for saving/restoring different panel layouts per game or session.
 - **SimHub** integration for telemetry data.
@@ -54,6 +55,11 @@ The two components communicate via a local **named pipe IPC channel** (panel tra
 4. Start your OpenXR sim (e.g. iRacing) in VR.
 
 ## Changelog
+
+### v1.5.0
+- New optional per-panel 3D housing: bezel/case around the panel with configurable bezel width, depth, color, roughness, metallic and corner size (mm). The display sits 1 mm recessed behind the bezel; the panel content stays fully sharp.
+- Housing lighting follows the sim's own rendered image (gets darker at night or in tunnels).
+- Robustness: if the VR runtime rejects a frame because of too many layers, the HUD falls back to the sim's own layers instead of freezing the headset.
 
 ### v1.4.0
 - Helmet visor can now be opened/closed with a short animation (wheel button or "Toggle visor"); when open, the raised lower glass edge stays visible at the top of the view.

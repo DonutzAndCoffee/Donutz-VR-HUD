@@ -38,6 +38,10 @@ namespace IpcServer
 		// (rendered by VisorRenderer.cpp instead of a textured quad).
 		SetVisorParams = 6,
 
+		// Client -> server: optional procedural 3D housing around a panel
+		// (rendered by HousingRenderer.cpp).
+		SetHousingParams = 7,
+
 		// Server -> client.
 		PanelTransformUpdated = 100,
 		ControllerNudgeAction = 101,
@@ -130,6 +134,27 @@ namespace IpcServer
 		VisorParams params;
 	};
 
+	// Mirrors Shared/OverlayIpcContract.cs's SetHousingParamsMessage
+	// (without the panel id / enabled flag). Colors are 0..1 sRGB.
+	struct HousingParams
+	{
+		uint8_t style;
+		float bezelWidthMm;
+		float depthMm;
+		float colorR, colorG, colorB;
+		float roughness;
+		float metallic;
+		// Outer corner radius of the housing.
+		float cornerRadiusMm;
+	};
+
+	struct SetHousingParamsPayload
+	{
+		PanelIdBytes panelId;
+		uint8_t enabled;
+		HousingParams params;
+	};
+
 	// Server -> client: final transform after a VR controller grab ends
 	// (see ControllerInput.cpp), so the managed app can update its
 	// OverlayPanel model and persist the new position/rotation.
@@ -182,6 +207,10 @@ namespace IpcServer
 		// helmet visor (VisorRenderer.cpp) instead of a quad.
 		bool isVisor = false;
 		VisorParams visor{};
+		// Set via SetHousingParams: draw a procedural 3D housing around
+		// the panel's quad (HousingRenderer.cpp).
+		bool hasHousing = false;
+		HousingParams housing{};
 	};
 
 	// Starts the background pipe-server thread on first call; subsequent

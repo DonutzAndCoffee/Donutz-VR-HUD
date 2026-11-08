@@ -3,6 +3,7 @@
 #include "Logging.h"
 
 #include <cstring>
+#include <vector>
 
 namespace
 {
@@ -34,7 +35,38 @@ namespace DonutzVrHud
 		const PFN_xrCreateApiLayerInstance nextCreateApiLayerInstance =
 			apiLayerInfo->nextInfo->nextCreateApiLayerInstance;
 
-		const XrResult result = nextCreateApiLayerInstance(info, &nextLayerInfo, instance);
+		// Request XR_KHR_composition_layer_depth so the housing layer can
+		// submit depth for positional reprojection. Falls back to the app's
+		// original extension list if the runtime does not support it.
+		bool depthEnabled = false;
+		XrResult result = XR_ERROR_EXTENSION_NOT_PRESENT;
+		{
+			std::vector<const char*> extensions(info->enabledExtensionNames,
+				info->enabledExtensionNames + info->enabledExtensionCount);
+			bool alreadyEnabled = false;
+			for (const char* ext : extensions)
+			{
+				if (ext != nullptr && std::strcmp(ext, XR_KHR_COMPOSITION_LAYER_DEPTH_EXTENSION_NAME) == 0)
+				{
+					alreadyEnabled = true;
+				}
+			}
+			if (!alreadyEnabled)
+			{
+				extensions.push_back(XR_KHR_COMPOSITION_LAYER_DEPTH_EXTENSION_NAME);
+			}
+			XrInstanceCreateInfo extended = *info;
+			extended.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
+			extended.enabledExtensionNames = extensions.data();
+			result = nextCreateApiLayerInstance(&extended, &nextLayerInfo, instance);
+			depthEnabled = XR_SUCCEEDED(result);
+		}
+		if (!depthEnabled)
+		{
+			Logging::Log("CreateApiLayerInstance: XR_KHR_composition_layer_depth not available, housing depth disabled.");
+			result = nextCreateApiLayerInstance(info, &nextLayerInfo, instance);
+		}
+		HookedFunctions::SetDepthLayerSupported(depthEnabled);
 		if (XR_FAILED(result))
 		{
 			Logging::Log("CreateApiLayerInstance: nextCreateApiLayerInstance failed with XrResult " + std::to_string(result));

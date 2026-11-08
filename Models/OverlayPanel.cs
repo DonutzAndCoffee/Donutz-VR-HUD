@@ -139,6 +139,34 @@ namespace Donutz_VR_HUD.Models
         private string _visorTextFont = "Bahnschrift";
         public string VisorTextFont { get => _visorTextFont; set => Set(ref _visorTextFont, string.IsNullOrWhiteSpace(value) ? "Arial" : value); }
 
+        /// <summary>If true, a procedural 3D housing (bezel + back shell) is drawn around the panel.</summary>
+        private bool _housingEnabled;
+        public bool HousingEnabled { get => _housingEnabled; set => Set(ref _housingEnabled, value); }
+
+        /// <summary>Bezel width in millimeters, added outside the panel's screen area.</summary>
+        private float _housingBezelWidthMm = 12f;
+        public float HousingBezelWidthMm { get => _housingBezelWidthMm; set => Set(ref _housingBezelWidthMm, value); }
+
+        /// <summary>Housing depth (front to back) in millimeters.</summary>
+        private float _housingDepthMm = 25f;
+        public float HousingDepthMm { get => _housingDepthMm; set => Set(ref _housingDepthMm, value); }
+
+        /// <summary>Housing base color ("#RRGGBB").</summary>
+        private string _housingColor = "#202022";
+        public string HousingColor { get => _housingColor; set => Set(ref _housingColor, value); }
+
+        /// <summary>Surface roughness (0 = glossy, 1 = matte).</summary>
+        private float _housingRoughness = 0.6f;
+        public float HousingRoughness { get => _housingRoughness; set => Set(ref _housingRoughness, value); }
+
+        /// <summary>Metallic factor (0 = plastic, 1 = metal).</summary>
+        private float _housingMetallic;
+        public float HousingMetallic { get => _housingMetallic; set => Set(ref _housingMetallic, value); }
+
+        /// <summary>Outer corner radius of the housing in millimeters.</summary>
+        private float _housingCornerRadiusMm = 4f;
+        public float HousingCornerRadiusMm { get => _housingCornerRadiusMm; set => Set(ref _housingCornerRadiusMm, value); }
+
         private bool _visorTextBold = true;
         public bool VisorTextBold { get => _visorTextBold; set => Set(ref _visorTextBold, value); }
 

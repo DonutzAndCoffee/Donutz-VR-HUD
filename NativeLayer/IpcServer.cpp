@@ -207,6 +207,24 @@ namespace
 				Logging::Log("IpcServer: visor params received.");
 			}
 			break;
+		case IpcServer::MessageType::SetHousingParams:
+			if (payload.size() >= sizeof(IpcServer::SetHousingParamsPayload))
+			{
+				IpcServer::SetHousingParamsPayload msg;
+				std::memcpy(&msg, payload.data(), sizeof(msg));
+				std::lock_guard<std::mutex> lock(g_stateMutex);
+				auto& panel = g_panels[ToKey(msg.panelId)];
+				panel.panelId = msg.panelId;
+				panel.hasHousing = msg.enabled != 0;
+				panel.housing = msg.params;
+				Logging::Log(std::string("IpcServer: housing params received, enabled=") + (panel.hasHousing ? "1" : "0"));
+			}
+			else
+			{
+				Logging::Log("IpcServer: SetHousingParams payload too small (" + std::to_string(payload.size()) +
+					" < " + std::to_string(sizeof(IpcServer::SetHousingParamsPayload)) + ")");
+			}
+			break;
 		case IpcServer::MessageType::SetEditModeActive:
 			if (payload.size() >= sizeof(IpcServer::SetEditModeActivePayload))
 			{

@@ -58,6 +58,14 @@ namespace Donutz_VR_HUD.Settings
         public bool VisorTextBold { get; set; } = true;
         public bool VisorTextItalic { get; set; } = true;
 
+        public bool HousingEnabled { get; set; }
+        public float HousingBezelWidthMm { get; set; } = 12f;
+        public float HousingDepthMm { get; set; } = 25f;
+        public string HousingColor { get; set; } = "#202022";
+        public float HousingRoughness { get; set; } = 0.6f;
+        public float HousingMetallic { get; set; }
+        public float HousingCornerRadiusMm { get; set; } = 4f;
+
         public static PanelSettings FromPanel(OverlayPanel panel) => new()
         {
             ImagePath = panel.ImagePath,
@@ -85,6 +93,13 @@ namespace Donutz_VR_HUD.Settings
             VisorTextFont = panel.VisorTextFont,
             VisorTextBold = panel.VisorTextBold,
             VisorTextItalic = panel.VisorTextItalic,
+            HousingEnabled = panel.HousingEnabled,
+            HousingBezelWidthMm = panel.HousingBezelWidthMm,
+            HousingDepthMm = panel.HousingDepthMm,
+            HousingColor = panel.HousingColor,
+            HousingRoughness = panel.HousingRoughness,
+            HousingMetallic = panel.HousingMetallic,
+            HousingCornerRadiusMm = panel.HousingCornerRadiusMm,
             Name = panel.Name,
             IsEnabled = panel.IsEnabled,
             SourceType = panel.SourceType,
@@ -149,7 +164,14 @@ namespace Donutz_VR_HUD.Settings
                 VisorEdgeCurve = VisorEdgeCurve,
                 VisorTextFont = VisorTextFont ?? "Arial",
                 VisorTextBold = VisorTextBold,
-                VisorTextItalic = VisorTextItalic
+                VisorTextItalic = VisorTextItalic,
+                HousingEnabled = HousingEnabled,
+                HousingBezelWidthMm = HousingBezelWidthMm > 0 ? HousingBezelWidthMm : 12f,
+                HousingDepthMm = HousingDepthMm > 0 ? HousingDepthMm : 25f,
+                HousingColor = HousingColor ?? "#202022",
+                HousingRoughness = HousingRoughness,
+                HousingMetallic = HousingMetallic,
+                HousingCornerRadiusMm = HousingCornerRadiusMm >= 0 ? HousingCornerRadiusMm : 4f
             };
 
             return panel;

@@ -39,4 +39,7 @@ namespace HookedFunctions
 	// offset math. Returns identity + hasAnchor=false before the first
 	// recenter.
 	XrPosef GetAnchorPose(bool* hasAnchor);
+
+	// Whether XR_KHR_composition_layer_depth was enabled on the instance.
+	void SetDepthLayerSupported(bool supported);
 }

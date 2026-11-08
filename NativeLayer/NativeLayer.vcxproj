@@ -88,6 +88,9 @@
 	<ClInclude Include="IpcServer.h" />
 	<ClInclude Include="Logging.h" />
 	<ClInclude Include="VisorRenderer.h" />
+	<ClInclude Include="HousingRenderer.h" />
+	<ClInclude Include="LightProbe.h" />
+	<ClInclude Include="ContentBounds.h" />
   </ItemGroup>
   <ItemGroup>
 	<ClCompile Include="ApiLayerInterface.cpp" />
@@ -96,6 +99,9 @@
 	<ClCompile Include="IpcServer.cpp" />
 	<ClCompile Include="Logging.cpp" />
 	<ClCompile Include="VisorRenderer.cpp" />
+	<ClCompile Include="HousingRenderer.cpp" />
+	<ClCompile Include="LightProbe.cpp" />
+	<ClCompile Include="ContentBounds.cpp" />
   </ItemGroup>
   <ItemGroup>
 	<None Include="DonutzVrHudLayer.def" />
