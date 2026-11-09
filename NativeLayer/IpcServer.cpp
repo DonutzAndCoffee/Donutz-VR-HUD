@@ -3,6 +3,7 @@
 
 #include <windows.h>
 
+#include <algorithm>
 #include <atomic>
 #include <cstring>
 #include <mutex>
@@ -223,6 +224,30 @@ namespace
 			{
 				Logging::Log("IpcServer: SetHousingParams payload too small (" + std::to_string(payload.size()) +
 					" < " + std::to_string(sizeof(IpcServer::SetHousingParamsPayload)) + ")");
+			}
+			break;
+		case IpcServer::MessageType::SetHousingProfile:
+			if (payload.size() >= sizeof(IpcServer::SetHousingProfileHeader))
+			{
+				IpcServer::SetHousingProfileHeader header;
+				std::memcpy(&header, payload.data(), sizeof(header));
+				const size_t available = (payload.size() - sizeof(header)) / sizeof(IpcServer::HousingProfilePoint);
+				const size_t count = (std::min)(static_cast<size_t>(header.pointCount), available);
+				IpcServer::HousingProfile profile;
+				profile.frontCornerRadiusMm = header.frontCornerRadiusMm;
+				profile.backCornerRadiusMm = header.backCornerRadiusMm;
+				profile.cornerSegments = (std::max)(1u, (std::min)(32u, static_cast<uint32_t>(header.cornerSegments)));
+				profile.points.resize(count);
+				if (count > 0)
+				{
+					std::memcpy(profile.points.data(), payload.data() + sizeof(header), count * sizeof(IpcServer::HousingProfilePoint));
+				}
+				std::lock_guard<std::mutex> lock(g_stateMutex);
+				auto& panel = g_panels[ToKey(header.panelId)];
+				panel.panelId = header.panelId;
+				profile.revision = panel.housingProfile.revision + 1;
+				panel.housingProfile = std::move(profile);
+				Logging::Log("IpcServer: housing profile received, points=" + std::to_string(count) + ".");
 			}
 			break;
 		case IpcServer::MessageType::SetEditModeActive:

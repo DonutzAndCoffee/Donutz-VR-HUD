@@ -65,6 +65,9 @@ namespace Donutz_VR_HUD.Settings
         public float HousingRoughness { get; set; } = 0.6f;
         public float HousingMetallic { get; set; }
         public float HousingCornerRadiusMm { get; set; } = 4f;
+        public HousingRenderMode HousingRenderMode { get; set; } = HousingRenderMode.Quads;
+        public float HousingRenderScale { get; set; } = 1f;
+        public string HousingProfileName { get; set; } = HousingProfile.DefaultName;
 
         public static PanelSettings FromPanel(OverlayPanel panel) => new()
         {
@@ -100,6 +103,9 @@ namespace Donutz_VR_HUD.Settings
             HousingRoughness = panel.HousingRoughness,
             HousingMetallic = panel.HousingMetallic,
             HousingCornerRadiusMm = panel.HousingCornerRadiusMm,
+            HousingRenderMode = panel.HousingRenderMode,
+            HousingRenderScale = panel.HousingRenderScale,
+            HousingProfileName = panel.HousingProfileName,
             Name = panel.Name,
             IsEnabled = panel.IsEnabled,
             SourceType = panel.SourceType,
@@ -171,7 +177,10 @@ namespace Donutz_VR_HUD.Settings
                 HousingColor = HousingColor ?? "#202022",
                 HousingRoughness = HousingRoughness,
                 HousingMetallic = HousingMetallic,
-                HousingCornerRadiusMm = HousingCornerRadiusMm >= 0 ? HousingCornerRadiusMm : 4f
+                HousingCornerRadiusMm = HousingCornerRadiusMm >= 0 ? HousingCornerRadiusMm : 4f,
+                HousingRenderMode = HousingRenderMode,
+                HousingRenderScale = HousingRenderScale > 0 ? HousingRenderScale : 1f,
+                HousingProfileName = HousingProfileName ?? HousingProfile.DefaultName
             };
 
             return panel;

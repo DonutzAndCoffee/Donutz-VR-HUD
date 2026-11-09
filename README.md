@@ -59,6 +59,8 @@ The two components communicate via a local **named pipe IPC channel** (panel tra
 ### v1.5.0
 - New optional per-panel 3D housing: bezel/case around the panel with configurable bezel width, depth, color, roughness, metallic and corner size (mm). The display sits 1 mm recessed behind the bezel; the panel content stays fully sharp.
 - Housing lighting follows the sim's own rendered image (gets darker at night or in tunnels).
+- Housing render mode per panel: "Quads" (lightweight) or "Mesh" (true 3D mesh rendered per eye into one projection layer, with optional depth submission). Mesh mode supports profiles (Flat, Rounded, Chamfered; custom profiles in `%LocalAppData%\Donutz VR HUD\housing-profiles.json`) and a render scale of 50–100 %.
+- Housing layers are dropped automatically if the runtime's layer limit would be exceeded; panels themselves stay visible.
 - Robustness: if the VR runtime rejects a frame because of too many layers, the HUD falls back to the sim's own layers instead of freezing the headset.
 
 ### v1.4.0

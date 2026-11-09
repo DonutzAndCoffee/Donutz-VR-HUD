@@ -167,6 +167,18 @@ namespace Donutz_VR_HUD.Models
         private float _housingCornerRadiusMm = 4f;
         public float HousingCornerRadiusMm { get => _housingCornerRadiusMm; set => Set(ref _housingCornerRadiusMm, value); }
 
+        /// <summary>How the housing is rendered (flat quads or 3D mesh).</summary>
+        private HousingRenderMode _housingRenderMode = HousingRenderMode.Quads;
+        public HousingRenderMode HousingRenderMode { get => _housingRenderMode; set => Set(ref _housingRenderMode, value); }
+
+        /// <summary>Resolution scale of the 3D mesh housing layer (0.5..1.0).</summary>
+        private float _housingRenderScale = 1f;
+        public float HousingRenderScale { get => _housingRenderScale; set => Set(ref _housingRenderScale, Math.Clamp(value, 0.5f, 1f)); }
+
+        /// <summary>Name of the housing profile (see <see cref="HousingProfile"/>) used in mesh mode.</summary>
+        private string _housingProfileName = HousingProfile.DefaultName;
+        public string HousingProfileName { get => _housingProfileName; set => Set(ref _housingProfileName, string.IsNullOrWhiteSpace(value) ? HousingProfile.DefaultName : value); }
+
         private bool _visorTextBold = true;
         public bool VisorTextBold { get => _visorTextBold; set => Set(ref _visorTextBold, value); }
 

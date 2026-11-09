@@ -517,6 +517,9 @@
                                                 <RowDefinition Height="Auto"/>
                                                 <RowDefinition Height="Auto"/>
                                                 <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
                                             </Grid.RowDefinitions>
                                             <TextBlock Grid.Row="0" Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Housing.BezelWidth]}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                                             <Slider Grid.Row="0" Grid.Column="1" Value="{Binding HousingBezelWidthMm}" Minimum="1" Maximum="100" VerticalAlignment="Center" Margin="0,2"
@@ -545,6 +548,16 @@
                                             <Slider Grid.Row="5" Grid.Column="1" Value="{Binding HousingCornerRadiusMm}" Minimum="0" Maximum="50" VerticalAlignment="Center" Margin="0,2"
                                                     ToolTip="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Housing.Tip.CornerRadius]}"/>
                                             <TextBlock Grid.Row="5" Grid.Column="2" Text="{Binding HousingCornerRadiusMm, StringFormat={}{0:0} mm}" VerticalAlignment="Center" TextAlignment="Right"/>
+                                            <TextBlock Grid.Row="6" Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Housing.RenderMode]}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                            <ComboBox Grid.Row="6" Grid.Column="1" Margin="0,2" ItemsSource="{x:Static models:HousingProfile.RenderModes}" SelectedItem="{Binding HousingRenderMode}"
+                                                      ToolTip="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Housing.Tip.RenderMode]}"/>
+                                            <TextBlock Grid.Row="7" Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Housing.Profile]}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                            <ComboBox Grid.Row="7" Grid.Column="1" Margin="0,2" ItemsSource="{x:Static models:HousingProfile.AllNames}" SelectedItem="{Binding HousingProfileName}"
+                                                      ToolTip="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Housing.Tip.Profile]}"/>
+                                            <TextBlock Grid.Row="8" Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Housing.RenderScale]}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                            <Slider Grid.Row="8" Grid.Column="1" Value="{Binding HousingRenderScale}" Minimum="0.5" Maximum="1" VerticalAlignment="Center" Margin="0,2"
+                                                    ToolTip="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Housing.Tip.RenderScale]}"/>
+                                            <TextBlock Grid.Row="8" Grid.Column="2" Text="{Binding HousingRenderScale, StringFormat={}{0:P0}}" VerticalAlignment="Center" TextAlignment="Right"/>
                                         </Grid>
                                     </GroupBox>
                                 </StackPanel>

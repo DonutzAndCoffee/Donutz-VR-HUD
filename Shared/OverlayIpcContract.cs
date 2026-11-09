@@ -54,6 +54,12 @@ namespace Donutz_VR_HUD.Shared
         SetHousingParams = 7,
 
         /// <summary>
+        /// Client -> server: housing cross-section profile (variable length,
+        /// see <see cref="SetHousingProfileHeader"/>).
+        /// </summary>
+        SetHousingProfile = 8,
+
+        /// <summary>
         /// Server -> client: a VR controller grab ended, reporting the
         /// panel's final position/rotation so the app can update its
         /// <c>OverlayPanel</c> model and persist it. See
@@ -193,6 +199,26 @@ namespace Donutz_VR_HUD.Shared
         public float Roughness;
         public float Metallic;
         public float CornerRadiusMm;
+
+        /// <summary>0 = flat quads around the panel, 1 = 3D mesh in one projection layer.</summary>
+        public byte RenderMode;
+
+        /// <summary>Resolution scale of the mesh projection layer (0.5..1.0).</summary>
+        public float RenderScale;
+    }
+
+    /// <summary>
+    /// Client -> server. Fixed header of <see cref="OverlayIpcMessageType.SetHousingProfile"/>;
+    /// followed by <see cref="PointCount"/> (InsetMm, ZMm) float pairs.
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    public struct SetHousingProfileHeader
+    {
+        public Guid PanelId;
+        public float FrontCornerRadiusMm;
+        public float BackCornerRadiusMm;
+        public byte CornerSegments;
+        public byte PointCount;
     }
 
     /// <summary>Server -> client. See <see cref="OverlayIpcMessageType.PanelTransformUpdated"/>.</summary>

@@ -6,34 +6,33 @@
 
 #include <d3d11.h>
 #include <dxgiformat.h>
+#include <string>
 #include <vector>
 
-// Procedural 3D panel housing. Each housed panel gets a box-shaped bezel
-// whose screen opening matches the panel quad exactly; the bezel grows
-// outward by bezelWidthMm and backward by depthMm. All housings are drawn
-// per eye into one premultiplied-alpha projection layer submitted after the
-// panel quads. The screen opening is first written into the depth buffer
-// only (alpha 0), so the back of the housing never covers the panel content
-// while the raised bezel lip still occludes the screen edges correctly.
+// Procedural 3D panel housing ("Mesh" render mode). Each housed panel gets a
+// mesh built by sweeping a rounded-rectangle outline along the panel's
+// housing profile (see IpcServer::HousingProfile). Each housing is drawn
+// per eye in the panel's own frame with an off-axis projection whose image
+// plane is the panel front plane; the result is submitted as two
+// eye-specific quad layers (left/right) with exactly the content quad's
+// pose/space, so the compositor reprojects housing and content identically.
+// The panel content itself stays a separate, sharp quad layer submitted
+// after it.
 //
 // Lighting is sim-agnostic: a hemisphere ambient + environment specular
-// derived from the app's own eye image (see LightProbe), so housings go dark
-// at night or in tunnels without any sun telemetry.
+// derived from the app's own eye image (see LightProbe). The view vector
+// uses the head centre for both eyes so highlights do not differ between
+// the eyes (no stereo shimmer).
 namespace HousingRenderer
 {
 	struct Instance
 	{
-		XrPosef pose;          // panel centre in the projection layer's space
-		float widthMeters;
+		std::string key;       // panel key, used for the cached mesh
+		XrPosef pose;          // display centre in the projection layer's space
+		float widthMeters;     // display (opening) size
 		float heightMeters;
 		IpcServer::HousingParams params;
-		// Panel content shown on the housing's screen (premultiplied BGRA
-		// swapchain image of the panel). Rendering it here instead of as a
-		// separate quad layer guarantees that screen and housing share the
-		// exact same stereo depth.
-		ID3D11Texture2D* content = nullptr;
-		int64_t contentFormat = 0;
-		float u0 = 0.0f, v0 = 0.0f, u1 = 1.0f, v1 = 1.0f;
+		const IpcServer::HousingProfile* profile = nullptr;
 	};
 
 	bool RenderEye(
@@ -45,6 +44,7 @@ namespace HousingRenderer
 		uint32_t height,
 		const XrPosef& eyePose,
 		const XrFovf& fov,
+		const XrVector3f& headPosition,
 		const std::vector<Instance>& instances,
 		const donutz::ProbeLighting& lighting,
 		ID3D11Texture2D* depthTarget = nullptr);
@@ -53,6 +53,9 @@ namespace HousingRenderer
 	// (D32_FLOAT, 0 = near, 1 = far), for XrCompositionLayerDepthInfoKHR.
 	constexpr float kNearZ = 0.02f;
 	constexpr float kFarZ = 50.0f;
+
+	// Display recess behind the front bezel plane, in meters.
+	constexpr float kRecessMeters = 0.001f;
 
 	void Reset();
 }

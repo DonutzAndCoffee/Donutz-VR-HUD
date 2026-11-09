@@ -42,6 +42,10 @@ namespace IpcServer
 		// (rendered by HousingRenderer.cpp).
 		SetHousingParams = 7,
 
+		// Client -> server: housing cross-section profile for mesh mode
+		// (variable length: SetHousingProfileHeader + points).
+		SetHousingProfile = 8,
+
 		// Server -> client.
 		PanelTransformUpdated = 100,
 		ControllerNudgeAction = 101,
@@ -146,6 +150,27 @@ namespace IpcServer
 		float metallic;
 		// Outer corner radius of the housing.
 		float cornerRadiusMm;
+		// 0 = flat quads around the panel, 1 = 3D mesh projection layer.
+		uint8_t renderMode;
+		// Resolution scale of the mesh projection layer (0.5..1).
+		float renderScale;
+	};
+
+	// One cross-section point: inset from the outer edge (mm) and depth as
+	// percent of the housing depth (0 = front, -100 = back).
+	struct HousingProfilePoint
+	{
+		float insetMm;
+		float zPercent;
+	};
+
+	struct SetHousingProfileHeader
+	{
+		PanelIdBytes panelId;
+		float frontCornerRadiusMm;
+		float backCornerRadiusMm;
+		uint8_t cornerSegments;
+		uint8_t pointCount;
 	};
 
 	struct SetHousingParamsPayload
@@ -184,6 +209,17 @@ namespace IpcServer
 	};
 #pragma pack(pop)
 
+	// Decoded housing profile (mesh mode). revision changes on every
+	// update so cached meshes can be rebuilt.
+	struct HousingProfile
+	{
+		float frontCornerRadiusMm = 0.0f;
+		float backCornerRadiusMm = 0.0f;
+		uint32_t cornerSegments = 8;
+		std::vector<HousingProfilePoint> points;
+		uint32_t revision = 0;
+	};
+
 	// In-memory representation of a single overlay panel, updated by the
 	// pipe server as messages arrive and consumed by
 	// HookedFunctions::Hook_xrEndFrame to build XrCompositionLayerQuad
@@ -211,6 +247,7 @@ namespace IpcServer
 		// the panel's quad (HousingRenderer.cpp).
 		bool hasHousing = false;
 		HousingParams housing{};
+		HousingProfile housingProfile{};
 	};
 
 	// Starts the background pipe-server thread on first call; subsequent

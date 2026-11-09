@@ -364,6 +364,34 @@ namespace Donutz_VR_HUD.OpenXR
             Send(OverlayIpcMessageType.SetHousingParams, StructToBytes(message));
         }
 
+        /// <summary>
+        /// Sends the housing cross-section profile used by the 3D mesh mode
+        /// (see NativeLayer/HousingRenderer.cpp).
+        /// </summary>
+        public void SetHousingProfile(Guid panelId, Models.HousingProfile profile)
+        {
+            var points = profile.Points.Take(64).ToList();
+            var header = new SetHousingProfileHeader
+            {
+                PanelId = panelId,
+                FrontCornerRadiusMm = profile.FrontCornerRadiusMm,
+                BackCornerRadiusMm = profile.BackCornerRadiusMm,
+                CornerSegments = (byte)Math.Clamp(profile.CornerSegments, 1, 32),
+                PointCount = (byte)points.Count,
+            };
+            var headerBytes = StructToBytes(header);
+            var payload = new byte[headerBytes.Length + points.Count * 8];
+            Buffer.BlockCopy(headerBytes, 0, payload, 0, headerBytes.Length);
+            var offset = headerBytes.Length;
+            foreach (var point in points)
+            {
+                BitConverter.TryWriteBytes(payload.AsSpan(offset, 4), point.InsetMm);
+                BitConverter.TryWriteBytes(payload.AsSpan(offset + 4, 4), point.ZPercent);
+                offset += 8;
+            }
+            Send(OverlayIpcMessageType.SetHousingProfile, payload);
+        }
+
         private void Send(OverlayIpcMessageType type, byte[] payload)
         {
             var pipe = _pipe;

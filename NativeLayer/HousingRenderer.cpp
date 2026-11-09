@@ -11,6 +11,7 @@
 #include <mutex>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 
 using Microsoft::WRL::ComPtr;
 
@@ -19,23 +20,20 @@ namespace
 	constexpr char kShaderSource[] = R"(
 cbuffer Constants : register(b0)
 {
+	row_major float4x4 world;
 	row_major float4x4 viewProj;
-	float4 eyePos;      // xyz
+	float4 eyePos;      // xyz, same space as viewProj
 	float4 sky;         // rgb
 	float4 ground;      // rgb
-	float4 misc;        // x = encode sRGB in shader, y = has content, z = content needs sRGB decode
+	float4 misc;        // x = encode sRGB in shader
 };
-
-Texture2D contentTex : register(t0);
-SamplerState contentSampler : register(s0);
 
 struct VSIn
 {
 	float3 pos : POSITION;
 	float3 normal : NORMAL;
-	float4 albedo : COLOR0;     // rgb linear, a = 1 housing / 0 screen
+	float4 albedo : COLOR0;      // rgb linear, a = 1 housing / 0 display
 	float2 material : TEXCOORD0; // x roughness, y metallic
-	float2 uv : TEXCOORD1;
 };
 
 struct PSIn
@@ -45,18 +43,17 @@ struct PSIn
 	float3 normal : NORMAL;
 	float4 albedo : COLOR0;
 	float2 material : TEXCOORD1;
-	float2 uv : TEXCOORD2;
 };
 
 PSIn VSMain(VSIn input)
 {
 	PSIn o;
-	o.pos = mul(viewProj, float4(input.pos, 1.0));
-	o.world = input.pos;
-	o.normal = input.normal;
+	float4 w = mul(world, float4(input.pos, 1.0));
+	o.pos = mul(viewProj, w);
+	o.world = w.xyz;
+	o.normal = mul((float3x3)world, input.normal);
 	o.albedo = input.albedo;
 	o.material = input.material;
-	o.uv = input.uv;
 	return o;
 }
 
@@ -67,54 +64,36 @@ float3 Hemisphere(float y)
 
 float4 PSMain(PSIn input) : SV_TARGET
 {
-	// Screen opening: rendered as a switched-off display (near-black glossy
-	// glass reflecting the ambient light). The panel quad is composited on
-	// top of it, so the dashboard appears to be shown on this screen.
-	if (input.albedo.a < 0.5)
-	{
-		float3 sn = normalize(input.normal);
-		float3 sv = normalize(eyePos.xyz - input.world);
-		if (dot(sn, sv) < 0) sn = -sn;
-		float sndv = saturate(dot(sn, sv));
-		float sf = 0.04 + 0.96 * pow(1.0 - sndv, 5.0);
-		float3 sr = reflect(-sv, sn);
-		float3 screen = float3(0.008, 0.009, 0.011) * Hemisphere(sn.y) * 4.0 + Hemisphere(sr.y) * sf;
-		if (misc.y > 0.5)
-		{
-			// Premultiplied panel content over the switched-off display.
-			float4 c = contentTex.Sample(contentSampler, input.uv);
-			if (misc.z > 0.5)
-			{
-				c.rgb = pow(saturate(c.rgb), 2.2);
-			}
-			screen = c.rgb + screen * (1.0 - c.a);
-		}
-		if (misc.x > 0.5)
-		{
-			screen = pow(saturate(screen), 1.0 / 2.2);
-		}
-		return float4(screen, 1.0);
-	}
-
 	float3 n = normalize(input.normal);
 	float3 v = normalize(eyePos.xyz - input.world);
 	if (dot(n, v) < 0) n = -n;
-
-	float roughness = input.material.x;
-	float metallic = input.material.y;
-	float3 albedo = input.albedo.rgb;
-
-	float3 diffuse = albedo * (1.0 - metallic) * Hemisphere(n.y);
-
-	float3 r = reflect(-v, n);
-	float3 f0 = lerp(float3(0.04, 0.04, 0.04), albedo, metallic);
 	float ndv = saturate(dot(n, v));
-	float3 fresnel = f0 + (max(1.0 - roughness, f0) - f0) * pow(1.0 - ndv, 5.0);
-	// Rough surfaces see a blurrier, more averaged environment.
-	float3 env = lerp(Hemisphere(r.y), (sky.rgb + ground.rgb) * 0.5, roughness);
-	float3 specular = env * fresnel * (1.0 - 0.7 * roughness);
+	float3 r = reflect(-v, n);
+	float3 color;
 
-	float3 color = diffuse + specular;
+	if (input.albedo.a < 0.5)
+	{
+		// Switched-off display: near-black glossy glass.
+		float f = 0.04 + 0.96 * pow(1.0 - ndv, 5.0);
+		color = float3(0.004, 0.004, 0.005) + Hemisphere(r.y) * f * 0.6;
+	}
+	else
+	{
+		float roughness = input.material.x;
+		float metallic = input.material.y;
+		float3 albedo = input.albedo.rgb;
+		// Key light from above plus hemisphere ambient.
+		float key = saturate(dot(n, normalize(float3(0.2, 1.0, 0.4)))) * 0.35;
+		float3 diffuse = albedo * (1.0 - metallic) * (Hemisphere(n.y) + key * sky.rgb);
+		float3 f0 = lerp(float3(0.04, 0.04, 0.04), albedo, metallic);
+		float3 fresnel = f0 + (max(1.0 - roughness, f0) - f0) * pow(1.0 - ndv, 5.0);
+		float3 env = lerp(Hemisphere(r.y), (sky.rgb + ground.rgb) * 0.5, roughness);
+		float3 specular = env * fresnel * (1.0 - 0.7 * roughness);
+		float3 h = normalize(v + normalize(float3(0.2, 1.0, 0.4)));
+		float spec = pow(saturate(dot(n, h)), lerp(256.0, 8.0, roughness)) * (1.0 - roughness) * 0.5;
+		color = (diffuse + specular + spec * sky.rgb) * lerp(0.6, 1.0, ndv);
+	}
+
 	if (misc.x > 0.5)
 	{
 		color = pow(saturate(color), 1.0 / 2.2);
@@ -129,16 +108,23 @@ float4 PSMain(PSIn input) : SV_TARGET
 		float normal[3];
 		float albedo[4];
 		float material[2];
-		float uv[2];
 	};
 
 	struct Constants
 	{
+		float world[16];
 		float viewProj[16];
 		float eyePos[4];
 		float sky[4];
 		float ground[4];
 		float misc[4];
+	};
+
+	struct MeshCache
+	{
+		ComPtr<ID3D11Buffer> vb;
+		UINT vertexCount = 0;
+		std::string signature;
 	};
 
 	std::mutex g_mutex;
@@ -149,36 +135,28 @@ float4 PSMain(PSIn input) : SV_TARGET
 	ComPtr<ID3D11PixelShader> g_ps;
 	ComPtr<ID3D11InputLayout> g_layout;
 	ComPtr<ID3D11Buffer> g_cb;
-	ComPtr<ID3D11Buffer> g_vb;
-	UINT g_vbCapacity = 0;
 	ComPtr<ID3D11RasterizerState> g_raster;
 	ComPtr<ID3D11DepthStencilState> g_depthState;
 	ComPtr<ID3D11BlendState> g_blend;
-	ComPtr<ID3D11SamplerState> g_sampler;
 	ComPtr<ID3D11Texture2D> g_depth;
 	ComPtr<ID3D11DepthStencilView> g_dsv;
 	UINT g_depthW = 0;
 	UINT g_depthH = 0;
-
-	// Multisampled colour target, resolved into the swapchain image.
 	ComPtr<ID3D11Texture2D> g_msaaColor;
 	ComPtr<ID3D11RenderTargetView> g_msaaRtv;
 	DXGI_FORMAT g_msaaFormat = DXGI_FORMAT_UNKNOWN;
 	UINT g_sampleCount = 1;
-
-	// Mipmapped copies of the panel content so minified text stays crisp
-	// instead of aliasing.
-	struct ContentMips
-	{
-		ComPtr<ID3D11Texture2D> texture;
-		ComPtr<ID3D11ShaderResourceView> srv;
-		UINT width = 0;
-		UINT height = 0;
-		DXGI_FORMAT format = DXGI_FORMAT_UNKNOWN;
-	};
-	std::unordered_map<ID3D11Texture2D*, ContentMips> g_contentMips;
+	std::unordered_map<std::string, MeshCache> g_meshes;
 
 	struct Vec3 { float x, y, z; };
+
+	Vec3 Sub(const Vec3& a, const Vec3& b) { return { a.x - b.x, a.y - b.y, a.z - b.z }; }
+	Vec3 Cross(const Vec3& a, const Vec3& b) { return { a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x }; }
+	Vec3 Normalize(const Vec3& v)
+	{
+		const float len = sqrtf(v.x * v.x + v.y * v.y + v.z * v.z);
+		return len > 1e-9f ? Vec3{ v.x / len, v.y / len, v.z / len } : Vec3{ 0, 0, 1 };
+	}
 
 	Vec3 Rotate(const XrQuaternionf& q, const Vec3& v)
 	{
@@ -208,16 +186,15 @@ float4 PSMain(PSIn input) : SV_TARGET
 			format == DXGI_FORMAT_R10G10B10A2_UNORM;
 	}
 
-	// Emits one quad (two triangles) a-b-c-d with a flat normal.
-	void PushQuad(std::vector<Vertex>& out, const Vec3& a, const Vec3& b, const Vec3& c, const Vec3& d,
-		const Vec3& normal, const float albedo[4], float roughness, float metallic)
+	void PushTri(std::vector<Vertex>& out, const Vec3& a, const Vec3& b, const Vec3& c,
+		const float albedo[4], float roughness, float metallic)
 	{
-		const Vec3 corners[6] = { a, b, c, a, c, d };
-		for (const auto& p : corners)
+		const Vec3 n = Normalize(Cross(Sub(b, a), Sub(c, a)));
+		for (const Vec3* p : { &a, &b, &c })
 		{
 			Vertex v{};
-			v.pos[0] = p.x; v.pos[1] = p.y; v.pos[2] = p.z;
-			v.normal[0] = normal.x; v.normal[1] = normal.y; v.normal[2] = normal.z;
+			v.pos[0] = p->x; v.pos[1] = p->y; v.pos[2] = p->z;
+			v.normal[0] = n.x; v.normal[1] = n.y; v.normal[2] = n.z;
 			std::memcpy(v.albedo, albedo, sizeof(v.albedo));
 			v.material[0] = roughness;
 			v.material[1] = metallic;
@@ -225,64 +202,180 @@ float4 PSMain(PSIn input) : SV_TARGET
 		}
 	}
 
-	void BuildHousing(const HousingRenderer::Instance& inst, std::vector<Vertex>& out)
+	void PushQuad(std::vector<Vertex>& out, const Vec3& a, const Vec3& b, const Vec3& c, const Vec3& d,
+		const float albedo[4], float roughness, float metallic)
+	{
+		PushTri(out, a, b, c, albedo, roughness, metallic);
+		PushTri(out, a, c, d, albedo, roughness, metallic);
+	}
+
+	// Rounded rectangle outline (CCW seen from +z), always the same point
+	// count for a given segment count so consecutive rings can be swept.
+	std::vector<Vec3> Outline(float halfW, float halfH, float radius, float z, uint32_t segments)
+	{
+		radius = std::clamp(radius, 0.0f, (std::min)(halfW, halfH));
+		const float cx[4] = { halfW - radius, -(halfW - radius), -(halfW - radius), halfW - radius };
+		const float cy[4] = { halfH - radius, halfH - radius, -(halfH - radius), -(halfH - radius) };
+		std::vector<Vec3> pts;
+		pts.reserve(4 * (segments + 1));
+		for (int corner = 0; corner < 4; ++corner)
+		{
+			for (uint32_t s = 0; s <= segments; ++s)
+			{
+				const float a = (corner + static_cast<float>(s) / segments) * 1.5707963f;
+				pts.push_back({ cx[corner] + radius * cosf(a), cy[corner] + radius * sinf(a), z });
+			}
+		}
+		return pts;
+	}
+
+	void SweepRings(std::vector<Vertex>& out, const std::vector<Vec3>& a, const std::vector<Vec3>& b,
+		const float albedo[4], float roughness, float metallic)
+	{
+		const size_t n = a.size();
+		for (size_t i = 0; i < n; ++i)
+		{
+			const size_t j = (i + 1) % n;
+			PushQuad(out, a[i], a[j], b[j], b[i], albedo, roughness, metallic);
+		}
+	}
+
+	void BuildMesh(const HousingRenderer::Instance& inst, std::vector<Vertex>& out)
 	{
 		const auto& p = inst.params;
 		const float hw = inst.widthMeters * 0.5f;
 		const float hh = inst.heightMeters * 0.5f;
 		const float bezel = std::clamp(p.bezelWidthMm, 1.0f, 100.0f) * 0.001f;
 		const float depth = std::clamp(p.depthMm, 2.0f, 200.0f) * 0.001f;
-		// Small raised lip in front of the screen so the bezel has a visible edge.
-		const float lip = (std::min)(0.003f, depth * 0.25f);
 		const float ow = hw + bezel;
 		const float oh = hh + bezel;
 		const float roughness = std::clamp(p.roughness, 0.05f, 1.0f);
 		const float metallic = std::clamp(p.metallic, 0.0f, 1.0f);
 		const float albedo[4] = { SrgbToLinear(p.colorR), SrgbToLinear(p.colorG), SrgbToLinear(p.colorB), 1.0f };
-		const float mask[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+		const float glass[4] = { 0.004f, 0.004f, 0.005f, 0.0f };
 
-		auto xf = [&](float x, float y, float z) {
-			const Vec3 r = Rotate(inst.pose.orientation, Vec3{ x, y, z });
-			return Vec3{ r.x + inst.pose.position.x, r.y + inst.pose.position.y, r.z + inst.pose.position.z };
-		};
-		auto nf = [&](float x, float y, float z) { return Rotate(inst.pose.orientation, Vec3{ x, y, z }); };
-
-		// Screen surface (switched-off display), slightly behind the lip plane.
-		PushQuad(out, xf(-hw, -hh, 0), xf(hw, -hh, 0), xf(hw, hh, 0), xf(-hw, hh, 0), nf(0, 0, 1), mask, 1.0f, 0.0f);
+		uint32_t segments = 8;
+		float frontRadius = std::clamp(p.cornerRadiusMm, 0.0f, 200.0f) * 0.001f;
+		float backRadius = frontRadius;
+		std::vector<IpcServer::HousingProfilePoint> points;
+		if (inst.profile != nullptr)
 		{
-			// UVs for the 6 screen vertices (a,b,c,a,c,d = BL,BR,TR,BL,TR,TL).
-			const float uvs[6][2] = {
-				{ inst.u0, inst.v1 }, { inst.u1, inst.v1 }, { inst.u1, inst.v0 },
-				{ inst.u0, inst.v1 }, { inst.u1, inst.v0 }, { inst.u0, inst.v0 } };
-			for (int i = 0; i < 6; ++i)
-			{
-				out[out.size() - 6 + i].uv[0] = uvs[i][0];
-				out[out.size() - 6 + i].uv[1] = uvs[i][1];
-			}
+			points = inst.profile->points;
+			segments = std::clamp(inst.profile->cornerSegments, 1u, 32u);
+			if (inst.profile->frontCornerRadiusMm > 0.0f) frontRadius = inst.profile->frontCornerRadiusMm * 0.001f;
+			if (inst.profile->backCornerRadiusMm > 0.0f) backRadius = inst.profile->backCornerRadiusMm * 0.001f;
+		}
+		float zMin = 0.0f, zMax = 0.0f;
+		for (const auto& pt : points)
+		{
+			zMin = (std::min)(zMin, pt.zPercent);
+			zMax = (std::max)(zMax, pt.zPercent);
+		}
+		if (points.size() < 2 || zMax - zMin < 1.0f)
+		{
+			points = { { 0.0f, 0.0f }, { 0.0f, -100.0f } };
 		}
 
-		// Front bezel ring (4 trapezoids).
-		const Vec3 fwd = nf(0, 0, 1);
-		PushQuad(out, xf(-ow, oh, lip), xf(ow, oh, lip), xf(hw, hh, lip), xf(-hw, hh, lip), fwd, albedo, roughness, metallic);
-		PushQuad(out, xf(-hw, -hh, lip), xf(hw, -hh, lip), xf(ow, -oh, lip), xf(-ow, -oh, lip), fwd, albedo, roughness, metallic);
-		PushQuad(out, xf(-ow, -oh, lip), xf(-ow, oh, lip), xf(-hw, hh, lip), xf(-hw, -hh, lip), fwd, albedo, roughness, metallic);
-		PushQuad(out, xf(hw, -hh, lip), xf(hw, hh, lip), xf(ow, oh, lip), xf(ow, -oh, lip), fwd, albedo, roughness, metallic);
+		// Recessed display opening + inner lip.
+		const float recess = HousingRenderer::kRecessMeters;
+		const float openRadius = (std::max)(0.0f, frontRadius - bezel);
+		const auto openFront = Outline(hw, hh, openRadius, 0.0f, segments);
+		const auto openBack = Outline(hw, hh, openRadius, -recess, segments);
+		SweepRings(out, openFront, openBack, albedo, roughness, metallic);
 
-		// Inner lip walls facing the screen centre.
-		PushQuad(out, xf(-hw, hh, 0), xf(hw, hh, 0), xf(hw, hh, lip), xf(-hw, hh, lip), nf(0, -1, 0), albedo, roughness, metallic);
-		PushQuad(out, xf(-hw, -hh, 0), xf(hw, -hh, 0), xf(hw, -hh, lip), xf(-hw, -hh, lip), nf(0, 1, 0), albedo, roughness, metallic);
-		PushQuad(out, xf(-hw, -hh, 0), xf(-hw, hh, 0), xf(-hw, hh, lip), xf(-hw, -hh, lip), nf(1, 0, 0), albedo, roughness, metallic);
-		PushQuad(out, xf(hw, -hh, 0), xf(hw, hh, 0), xf(hw, hh, lip), xf(hw, -hh, lip), nf(-1, 0, 0), albedo, roughness, metallic);
+		// Profile rings from front to back.
+		std::vector<std::vector<Vec3>> rings;
+		for (const auto& pt : points)
+		{
+			const float t = std::clamp(-pt.zPercent / 100.0f, 0.0f, 1.0f);
+			const float inset = (std::max)(0.0f, pt.insetMm) * 0.001f;
+			const float radius = (std::max)(0.0f, frontRadius + (backRadius - frontRadius) * t - inset);
+			rings.push_back(Outline((std::max)(hw, ow - inset), (std::max)(hh, oh - inset), radius,
+				std::clamp(pt.zPercent, -100.0f, 0.0f) * 0.01f * depth, segments));
+		}
 
-		// Outer sides from the lip back to the rear.
-		const float back = -depth;
-		PushQuad(out, xf(-ow, oh, back), xf(ow, oh, back), xf(ow, oh, lip), xf(-ow, oh, lip), nf(0, 1, 0), albedo, roughness, metallic);
-		PushQuad(out, xf(-ow, -oh, back), xf(ow, -oh, back), xf(ow, -oh, lip), xf(-ow, -oh, lip), nf(0, -1, 0), albedo, roughness, metallic);
-		PushQuad(out, xf(-ow, -oh, back), xf(-ow, oh, back), xf(-ow, oh, lip), xf(-ow, -oh, lip), nf(-1, 0, 0), albedo, roughness, metallic);
-		PushQuad(out, xf(ow, -oh, back), xf(ow, oh, back), xf(ow, oh, lip), xf(ow, -oh, lip), nf(1, 0, 0), albedo, roughness, metallic);
+		// Front bezel face: display opening -> first profile ring.
+		SweepRings(out, openFront, rings.front(), albedo, roughness, metallic);
+		for (size_t r = 1; r < rings.size(); ++r)
+		{
+			SweepRings(out, rings[r - 1], rings[r], albedo, roughness, metallic);
+		}
 
-		// Back plate.
-		PushQuad(out, xf(-ow, -oh, back), xf(ow, -oh, back), xf(ow, oh, back), xf(-ow, oh, back), nf(0, 0, -1), albedo, roughness, metallic);
+		// Back cap.
+		const auto& back = rings.back();
+		const Vec3 centre{ 0.0f, 0.0f, back.front().z };
+		for (size_t i = 0; i < back.size(); ++i)
+		{
+			PushTri(out, centre, back[(i + 1) % back.size()], back[i], albedo, roughness, metallic);
+		}
+
+		// Opaque dark display surface at the bottom of the recess.
+		const Vec3 dc{ 0.0f, 0.0f, -recess };
+		for (size_t i = 0; i < openBack.size(); ++i)
+		{
+			PushTri(out, dc, openBack[i], openBack[(i + 1) % openBack.size()], glass, 0.15f, 0.0f);
+		}
+	}
+
+	std::string Signature(const HousingRenderer::Instance& inst)
+	{
+		const auto& p = inst.params;
+		std::string s = std::to_string(inst.widthMeters) + "|" + std::to_string(inst.heightMeters) + "|" +
+			std::to_string(p.bezelWidthMm) + "|" + std::to_string(p.depthMm) + "|" + std::to_string(p.cornerRadiusMm) + "|" +
+			std::to_string(p.colorR) + "|" + std::to_string(p.colorG) + "|" + std::to_string(p.colorB) + "|" +
+			std::to_string(p.roughness) + "|" + std::to_string(p.metallic);
+		if (inst.profile != nullptr)
+		{
+			s += "|r" + std::to_string(inst.profile->revision) + "|n" + std::to_string(inst.profile->points.size());
+		}
+		return s;
+	}
+
+	MeshCache* GetMeshLocked(ID3D11Device* device, const HousingRenderer::Instance& inst)
+	{
+		const std::string signature = Signature(inst);
+		auto& entry = g_meshes[inst.key];
+		if (entry.vb && entry.signature == signature)
+		{
+			return &entry;
+		}
+
+		std::vector<Vertex> vertices;
+		BuildMesh(inst, vertices);
+		entry = MeshCache{};
+		if (vertices.empty())
+		{
+			return nullptr;
+		}
+		D3D11_BUFFER_DESC desc{};
+		desc.ByteWidth = static_cast<UINT>(vertices.size() * sizeof(Vertex));
+		desc.Usage = D3D11_USAGE_IMMUTABLE;
+		desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+		D3D11_SUBRESOURCE_DATA data{ vertices.data() };
+		if (FAILED(device->CreateBuffer(&desc, &data, &entry.vb)))
+		{
+			Logging::Log("HousingRenderer: creating mesh vertex buffer failed.");
+			g_meshes.erase(inst.key);
+			return nullptr;
+		}
+		entry.vertexCount = static_cast<UINT>(vertices.size());
+		entry.signature = signature;
+		Logging::Log("HousingRenderer: mesh rebuilt (triangles=" + std::to_string(vertices.size() / 3) + ").");
+		return &entry;
+	}
+
+	// Row-major rigid transform for column vectors (p' = M * p).
+	void BuildWorld(const XrPosef& pose, float out[16])
+	{
+		const Vec3 cx = Rotate(pose.orientation, Vec3{ 1, 0, 0 });
+		const Vec3 cy = Rotate(pose.orientation, Vec3{ 0, 1, 0 });
+		const Vec3 cz = Rotate(pose.orientation, Vec3{ 0, 0, 1 });
+		const float m[16] = {
+			cx.x, cy.x, cz.x, pose.position.x,
+			cx.y, cy.y, cz.y, pose.position.y,
+			cx.z, cy.z, cz.z, pose.position.z,
+			0, 0, 0, 1 };
+		std::memcpy(out, m, sizeof(m));
 	}
 
 	// Row-major view-projection for column vectors (clip = M * p).
@@ -343,12 +436,9 @@ float4 PSMain(PSIn input) : SV_TARGET
 		g_ps.Reset();
 		g_layout.Reset();
 		g_cb.Reset();
-		g_vb.Reset();
-		g_vbCapacity = 0;
 		g_raster.Reset();
 		g_depthState.Reset();
 		g_blend.Reset();
-		g_sampler.Reset();
 		g_state.Reset();
 		g_dsv.Reset();
 		g_depth.Reset();
@@ -357,7 +447,7 @@ float4 PSMain(PSIn input) : SV_TARGET
 		g_msaaColor.Reset();
 		g_msaaFormat = DXGI_FORMAT_UNKNOWN;
 		g_sampleCount = 1;
-		g_contentMips.clear();
+		g_meshes.clear();
 		g_device = nullptr;
 		g_initFailed = false;
 	}
@@ -411,7 +501,6 @@ float4 PSMain(PSIn input) : SV_TARGET
 			{ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, offsetof(Vertex, normal), D3D11_INPUT_PER_VERTEX_DATA, 0 },
 			{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, offsetof(Vertex, albedo), D3D11_INPUT_PER_VERTEX_DATA, 0 },
 			{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, offsetof(Vertex, material), D3D11_INPUT_PER_VERTEX_DATA, 0 },
-			{ "TEXCOORD", 1, DXGI_FORMAT_R32G32_FLOAT, 0, offsetof(Vertex, uv), D3D11_INPUT_PER_VERTEX_DATA, 0 },
 		};
 		if (FAILED(device->CreateInputLayout(layout, static_cast<UINT>(std::size(layout)),
 			vsCode->GetBufferPointer(), vsCode->GetBufferSize(), &g_layout)))
@@ -435,7 +524,6 @@ float4 PSMain(PSIn input) : SV_TARGET
 		rs.CullMode = D3D11_CULL_NONE;
 		rs.DepthClipEnable = TRUE;
 		rs.MultisampleEnable = TRUE;
-		rs.AntialiasedLineEnable = FALSE;
 		D3D11_DEPTH_STENCIL_DESC ds{};
 		ds.DepthEnable = TRUE;
 		ds.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
@@ -450,24 +538,12 @@ float4 PSMain(PSIn input) : SV_TARGET
 			return false;
 		}
 
-		D3D11_SAMPLER_DESC samp{};
-		samp.Filter = D3D11_FILTER_ANISOTROPIC;
-		samp.MaxAnisotropy = 8;
-		samp.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
-		samp.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
-		samp.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
-		samp.MaxLOD = D3D11_FLOAT32_MAX;
-		if (FAILED(device->CreateSamplerState(&samp, &g_sampler)))
-		{
-			return false;
-		}
-
 		g_initFailed = false;
 		Logging::Log("HousingRenderer: initialized.");
 		return true;
 	}
 
-	bool EnsureDepthLocked(ID3D11Device* device, UINT width, UINT height, DXGI_FORMAT colorFormat)
+	bool EnsureTargetsLocked(ID3D11Device* device, UINT width, UINT height, DXGI_FORMAT colorFormat)
 	{
 		if (g_dsv && g_depthW == width && g_depthH == height && g_msaaFormat == colorFormat)
 		{
@@ -526,64 +602,6 @@ float4 PSMain(PSIn input) : SV_TARGET
 			" samples=" + std::to_string(g_sampleCount) + ".");
 		return true;
 	}
-
-	// Copies the content into a mipmapped texture and returns its SRV.
-	ID3D11ShaderResourceView* GetContentSrvLocked(ID3D11Device* device, ID3D11DeviceContext* context,
-		ID3D11Texture2D* content, DXGI_FORMAT format)
-	{
-		D3D11_TEXTURE2D_DESC src{};
-		content->GetDesc(&src);
-		auto& entry = g_contentMips[content];
-		if (!entry.srv || entry.width != src.Width || entry.height != src.Height || entry.format != format)
-		{
-			entry = ContentMips{};
-			D3D11_TEXTURE2D_DESC desc{};
-			desc.Width = src.Width;
-			desc.Height = src.Height;
-			desc.MipLevels = 0;
-			desc.ArraySize = 1;
-			desc.Format = format;
-			desc.SampleDesc.Count = 1;
-			desc.Usage = D3D11_USAGE_DEFAULT;
-			desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
-			desc.MiscFlags = D3D11_RESOURCE_MISC_GENERATE_MIPS;
-			if (FAILED(device->CreateTexture2D(&desc, nullptr, &entry.texture)) ||
-				FAILED(device->CreateShaderResourceView(entry.texture.Get(), nullptr, &entry.srv)))
-			{
-				Logging::Log("HousingRenderer: creating content mip texture failed (format=" + std::to_string(format) + ").");
-				g_contentMips.erase(content);
-				return nullptr;
-			}
-			entry.width = src.Width;
-			entry.height = src.Height;
-			entry.format = format;
-		}
-		context->CopySubresourceRegion(entry.texture.Get(), 0, 0, 0, 0, content, 0, nullptr);
-		context->GenerateMips(entry.srv.Get());
-		return entry.srv.Get();
-	}
-
-	bool EnsureVertexBufferLocked(ID3D11Device* device, UINT vertexCount)
-	{
-		if (g_vb && g_vbCapacity >= vertexCount)
-		{
-			return true;
-		}
-		g_vb.Reset();
-		const UINT capacity = (std::max)(vertexCount, 1024u);
-		D3D11_BUFFER_DESC desc{};
-		desc.ByteWidth = capacity * sizeof(Vertex);
-		desc.Usage = D3D11_USAGE_DYNAMIC;
-		desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-		desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-		if (FAILED(device->CreateBuffer(&desc, nullptr, &g_vb)))
-		{
-			g_vbCapacity = 0;
-			return false;
-		}
-		g_vbCapacity = capacity;
-		return true;
-	}
 }
 
 namespace HousingRenderer
@@ -597,9 +615,10 @@ namespace HousingRenderer
 		uint32_t height,
 		const XrPosef& eyePose,
 		const XrFovf& fov,
+		const XrVector3f& headPosition,
 		const std::vector<Instance>& instances,
 		const donutz::ProbeLighting& lighting,
-		ID3D11Texture2D* depthTarget)
+		ID3D11Texture2D* /*depthTarget*/)
 	{
 		if (device == nullptr || context == nullptr || target == nullptr || width == 0 || height == 0)
 		{
@@ -607,7 +626,7 @@ namespace HousingRenderer
 		}
 
 		std::lock_guard<std::mutex> lock(g_mutex);
-		if (!EnsureInitializedLocked(device) || !EnsureDepthLocked(device, width, height, rtvFormat))
+		if (!EnsureInitializedLocked(device) || !EnsureTargetsLocked(device, width, height, rtvFormat))
 		{
 			return false;
 		}
@@ -618,18 +637,22 @@ namespace HousingRenderer
 			return false;
 		}
 
-		std::vector<Vertex> vertices;
-		std::vector<UINT> starts;
-		vertices.reserve(instances.size() * 14 * 6);
+		{
+			std::unordered_set<std::string> live;
+			for (const auto& inst : instances) live.insert(inst.key);
+			for (auto it = g_meshes.begin(); it != g_meshes.end();)
+			{
+				it = live.count(it->first) == 0 ? g_meshes.erase(it) : std::next(it);
+			}
+		}
+
+		std::vector<std::pair<MeshCache*, const Instance*>> draws;
 		for (const auto& inst : instances)
 		{
-			starts.push_back(static_cast<UINT>(vertices.size()));
-			BuildHousing(inst, vertices);
-		}
-		starts.push_back(static_cast<UINT>(vertices.size()));
-		if (!EnsureVertexBufferLocked(device, static_cast<UINT>(vertices.size())))
-		{
-			return false;
+			if (MeshCache* mesh = GetMeshLocked(device, inst))
+			{
+				draws.emplace_back(mesh, &inst);
+			}
 		}
 
 		D3D11_RENDER_TARGET_VIEW_DESC rtvDesc{};
@@ -644,22 +667,15 @@ namespace HousingRenderer
 
 		Constants constants{};
 		BuildViewProj(eyePose, fov, constants.viewProj);
-		constants.eyePos[0] = eyePose.position.x;
-		constants.eyePos[1] = eyePose.position.y;
-		constants.eyePos[2] = eyePose.position.z;
+		constants.eyePos[0] = headPosition.x;
+		constants.eyePos[1] = headPosition.y;
+		constants.eyePos[2] = headPosition.z;
 		constants.sky[0] = lighting.skyR; constants.sky[1] = lighting.skyG; constants.sky[2] = lighting.skyB;
 		constants.ground[0] = lighting.groundR; constants.ground[1] = lighting.groundG; constants.ground[2] = lighting.groundB;
 		constants.misc[0] = (!IsSrgb(rtvFormat) && IsUnormLdr(rtvFormat)) ? 1.0f : 0.0f;
 
 		ComPtr<ID3DDeviceContextState> previousState;
 		context1->SwapDeviceContextState(g_state.Get(), &previousState);
-
-		D3D11_MAPPED_SUBRESOURCE mapped{};
-		if (!vertices.empty() && SUCCEEDED(context->Map(g_vb.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped)))
-		{
-			std::memcpy(mapped.pData, vertices.data(), vertices.size() * sizeof(Vertex));
-			context->Unmap(g_vb.Get(), 0);
-		}
 
 		const float clear[4] = { 0, 0, 0, 0 };
 		ID3D11RenderTargetView* colorRtv = g_sampleCount > 1 ? g_msaaRtv.Get() : rtv.Get();
@@ -673,7 +689,6 @@ namespace HousingRenderer
 
 		ID3D11RenderTargetView* rtvs[] = { colorRtv };
 		ID3D11Buffer* cbs[] = { g_cb.Get() };
-		ID3D11Buffer* vbs[] = { g_vb.Get() };
 		const UINT stride = sizeof(Vertex);
 		const UINT offset = 0;
 		context->OMSetRenderTargets(1, rtvs, g_dsv.Get());
@@ -683,67 +698,30 @@ namespace HousingRenderer
 		context->RSSetViewports(1, &viewport);
 		context->IASetInputLayout(g_layout.Get());
 		context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-		context->IASetVertexBuffers(0, 1, vbs, &stride, &offset);
 		context->VSSetShader(g_vs.Get(), nullptr, 0);
 		context->VSSetConstantBuffers(0, 1, cbs);
 		context->PSSetShader(g_ps.Get(), nullptr, 0);
 		context->PSSetConstantBuffers(0, 1, cbs);
-		ID3D11SamplerState* samplers[] = { g_sampler.Get() };
-		context->PSSetSamplers(0, 1, samplers);
 
-		for (size_t i = 0; i < instances.size(); ++i)
+		for (const auto& [mesh, inst] : draws)
 		{
-			const auto& inst = instances[i];
-			ID3D11ShaderResourceView* srv = nullptr;
-			bool contentSrgb = false;
-			if (inst.content != nullptr)
-			{
-				DXGI_FORMAT f = static_cast<DXGI_FORMAT>(inst.contentFormat);
-				srv = GetContentSrvLocked(device, context, inst.content, f);
-				// UNORM content written by the sources is sRGB-encoded; a
-				// linear-light (sRGB/float) target needs it decoded.
-				contentSrgb = !IsSrgb(f) && constants.misc[0] < 0.5f;
-			}
-
-			constants.misc[1] = srv != nullptr ? 1.0f : 0.0f;
-			constants.misc[2] = contentSrgb ? 1.0f : 0.0f;
+			BuildWorld(inst->pose, constants.world);
+			D3D11_MAPPED_SUBRESOURCE mapped{};
 			if (SUCCEEDED(context->Map(g_cb.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped)))
 			{
 				std::memcpy(mapped.pData, &constants, sizeof(constants));
 				context->Unmap(g_cb.Get(), 0);
 			}
-			ID3D11ShaderResourceView* srvs[] = { srv };
-			context->PSSetShaderResources(0, 1, srvs);
-			context->Draw(starts[i + 1] - starts[i], starts[i]);
+			ID3D11Buffer* vbs[] = { mesh->vb.Get() };
+			context->IASetVertexBuffers(0, 1, vbs, &stride, &offset);
+			context->Draw(mesh->vertexCount, 0);
 		}
-
-		ID3D11ShaderResourceView* nullSrv[] = { nullptr };
-		context->PSSetShaderResources(0, 1, nullSrv);
 
 		ID3D11RenderTargetView* nullRtv[] = { nullptr };
 		context->OMSetRenderTargets(1, nullRtv, nullptr);
-
 		if (g_sampleCount > 1)
 		{
 			context->ResolveSubresource(target, 0, g_msaaColor.Get(), 0, rtvFormat);
-		}
-
-		// Depth for the runtime's positional reprojection: a single-sample
-		// depth-only pass straight into the depth swapchain image.
-		if (depthTarget != nullptr)
-		{
-			D3D11_DEPTH_STENCIL_VIEW_DESC dd{};
-			dd.Format = DXGI_FORMAT_D32_FLOAT;
-			dd.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
-			ComPtr<ID3D11DepthStencilView> depthDsv;
-			if (SUCCEEDED(device->CreateDepthStencilView(depthTarget, &dd, &depthDsv)))
-			{
-				context->ClearDepthStencilView(depthDsv.Get(), D3D11_CLEAR_DEPTH, 1.0f, 0);
-				context->OMSetRenderTargets(0, nullptr, depthDsv.Get());
-				context->PSSetShader(nullptr, nullptr, 0);
-				context->Draw(static_cast<UINT>(vertices.size()), 0);
-				context->OMSetRenderTargets(0, nullptr, nullptr);
-			}
 		}
 
 		context1->SwapDeviceContextState(previousState.Get(), nullptr);

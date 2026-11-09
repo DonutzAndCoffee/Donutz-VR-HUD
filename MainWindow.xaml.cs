@@ -2049,7 +2049,13 @@ namespace Donutz_VR_HUD
                 case nameof(OverlayPanel.HousingRoughness):
                 case nameof(OverlayPanel.HousingMetallic):
                 case nameof(OverlayPanel.HousingCornerRadiusMm):
+                case nameof(OverlayPanel.HousingRenderMode):
+                case nameof(OverlayPanel.HousingRenderScale):
                     _ipcClient?.SetHousingParams(BuildHousingParams(panel));
+                    SaveSettings();
+                    break;
+                case nameof(OverlayPanel.HousingProfileName):
+                    _ipcClient?.SetHousingProfile(panel.Id, HousingProfile.Find(panel.HousingProfileName));
                     SaveSettings();
                     break;
             }
@@ -2067,6 +2073,7 @@ namespace Donutz_VR_HUD
                 panel.HeadLocked,
                 panel.OpaqueBackground,
                 nonInteractive: panel.SourceType == PanelSourceType.Visor);
+            _ipcClient?.SetHousingProfile(panel.Id, HousingProfile.Find(panel.HousingProfileName));
             _ipcClient?.SetHousingParams(BuildHousingParams(panel));
         }
 
@@ -2084,6 +2091,8 @@ namespace Donutz_VR_HUD
                 Roughness = Math.Clamp(panel.HousingRoughness, 0.05f, 1f),
                 Metallic = Math.Clamp(panel.HousingMetallic, 0f, 1f),
                 CornerRadiusMm = Math.Clamp(panel.HousingCornerRadiusMm, 0f, 50f),
+                RenderMode = (byte)panel.HousingRenderMode,
+                RenderScale = Math.Clamp(panel.HousingRenderScale, 0.5f, 1f),
             };
         }
 

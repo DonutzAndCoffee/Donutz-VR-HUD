@@ -43,6 +43,7 @@ namespace
         PFN_xrCreateReferenceSpace xrCreateReferenceSpace = nullptr;
         PFN_xrDestroySpace xrDestroySpace = nullptr;
         PFN_xrLocateSpace xrLocateSpace = nullptr;
+        PFN_xrLocateViews xrLocateViews = nullptr;
         PFN_xrAttachSessionActionSets xrAttachSessionActionSets = nullptr;
     };
 
@@ -1634,6 +1635,15 @@ namespace
         }
         std::vector<XrCompositionLayerQuad> housingBack;
         std::vector<XrCompositionLayerQuad> housingFront;
+        // Mesh-mode housings, rendered later into one projection layer.
+        struct MeshHousing
+        {
+            XrSpace space;
+            HousingRenderer::Instance instance;
+            float pixelsPerMeter;
+        };
+        std::vector<MeshHousing> meshHousings;
+        float meshRenderScale = 0.5f;
 
         for (const auto& panel : panels)
         {
@@ -1771,6 +1781,28 @@ namespace
                     screenPose.position = { quad.pose.position.x + shift.x, quad.pose.position.y + shift.y, quad.pose.position.z + shift.z };
                     screenWidth = (content.u1 - content.u0) * panel.widthMeters;
                     screenHeight = (content.v1 - content.v0) * panel.heightMeters;
+                }
+
+                if (panel.housing.renderMode == 1 && g_d3dDevice != nullptr && g_d3dContext != nullptr)
+                {
+                    // Mesh mode: housing goes into a shared projection layer
+                    // in the same space as the content quad.
+                    MeshHousing mesh{};
+                    mesh.space = quad.space;
+                    mesh.instance.key = key;
+                    mesh.instance.pose = screenPose;
+                    mesh.instance.widthMeters = screenWidth;
+                    mesh.instance.heightMeters = screenHeight;
+                    mesh.instance.params = panel.housing;
+                    mesh.instance.profile = &panel.housingProfile;
+                    mesh.pixelsPerMeter = panel.widthMeters > 0.001f
+                        ? static_cast<float>(panel.frameWidth) / panel.widthMeters
+                        : 2048.0f;
+                    meshHousings.push_back(std::move(mesh));
+                    meshRenderScale = (std::max)(meshRenderScale, std::clamp(panel.housing.renderScale, 0.5f, 2.0f));
+                    quads.push_back(quad);
+                    anyHousedPanel = true;
+                    continue;
                 }
 
                 // The panel content stays its own, unmodified quad (full
@@ -2050,6 +2082,174 @@ namespace
             }
         }
 
+		// Mesh housings: rendered per eye with an off-axis projection whose
+		// image plane is the panel's own front plane, then submitted as two
+		// eye-specific quad layers with exactly the panel's pose/space/size.
+		// The compositor therefore treats housing and content identically
+		// (same layer type, same space, same reprojection) - no dependence
+		// on how the runtime composites a second projection layer.
+		constexpr uint32_t kHousingViews = 2;
+		// Distance of the housing quad's image plane behind the panel front.
+		constexpr float kHousingPlaneOffset = 0.005f;
+		std::vector<XrCompositionLayerQuad> meshQuads;
+		if (!meshHousings.empty())
+		{
+			PFN_xrLocateViews locateViews;
+			{
+				std::lock_guard<std::mutex> lock(g_mutex);
+				locateViews = g_next.xrLocateViews;
+			}
+
+			const XrSpace housingSpace = meshHousings.front().space;
+			XrView locatedViews[kHousingViews];
+			for (auto& lv : locatedViews) lv = XrView{ XR_TYPE_VIEW };
+			bool locatedOk = false;
+			if (locateViews != nullptr)
+			{
+				XrViewLocateInfo locateInfo{ XR_TYPE_VIEW_LOCATE_INFO };
+				locateInfo.viewConfigurationType = XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO;
+				locateInfo.displayTime = frameEndInfo->displayTime;
+				locateInfo.space = housingSpace;
+				XrViewState viewState{ XR_TYPE_VIEW_STATE };
+				uint32_t located = 0;
+				constexpr XrViewStateFlags kViewValid = XR_VIEW_STATE_POSITION_VALID_BIT | XR_VIEW_STATE_ORIENTATION_VALID_BIT;
+				locatedOk = XR_SUCCEEDED(locateViews(session, &locateInfo, &viewState, kHousingViews, &located, locatedViews)) &&
+					located == kHousingViews && (viewState.viewStateFlags & kViewValid) == kViewValid;
+			}
+
+			if (locatedOk)
+			{
+				XrVector3f headCentre{ 0.0f, 0.0f, 0.0f };
+				for (const auto& lv : locatedViews)
+				{
+					headCentre.x += lv.pose.position.x * 0.5f;
+					headCentre.y += lv.pose.position.y * 0.5f;
+					headCentre.z += lv.pose.position.z * 0.5f;
+				}
+
+				meshQuads.reserve(meshHousings.size() * kHousingViews);
+				for (const auto& mesh : meshHousings)
+				{
+					if (mesh.space != housingSpace)
+					{
+						continue;
+					}
+					const auto& inst = mesh.instance;
+					const XrQuaternionf invRot{ -inst.pose.orientation.x, -inst.pose.orientation.y,
+						-inst.pose.orientation.z, inst.pose.orientation.w };
+					const auto toPanel = [&](const XrVector3f& p) {
+						return QuatRotateVector(invRot, XrVector3f{ p.x - inst.pose.position.x,
+							p.y - inst.pose.position.y, p.z - inst.pose.position.z });
+					};
+
+					// Quad large enough to also contain the perspective
+					// footprint of the housing's back part.
+					const float bezel = std::clamp(inst.params.bezelWidthMm, 1.0f, 100.0f) * 0.001f;
+					const float depth = std::clamp(inst.params.depthMm, 2.0f, 200.0f) * 0.001f;
+					const float margin = bezel + depth * 1.5f;
+					const float quadW = inst.widthMeters + 2.0f * margin;
+					const float quadH = inst.heightMeters + 2.0f * margin;
+					const int32_t w = std::clamp(static_cast<int32_t>(quadW * mesh.pixelsPerMeter * meshRenderScale), 64, 4096);
+					const int32_t h = std::clamp(static_cast<int32_t>(quadH * mesh.pixelsPerMeter * meshRenderScale), 64, 4096);
+
+					// Render in the panel's own frame (panel pose = identity).
+					std::vector<HousingRenderer::Instance> single(1, inst);
+					single.front().pose = XrPosef{ { 0.0f, 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f, 0.0f } };
+					const XrVector3f headLocal = toPanel(headCentre);
+
+					XrCompositionLayerQuad eyeQuads[kHousingViews];
+					bool ok = true;
+					for (uint32_t v = 0; v < kHousingViews && ok; ++v)
+					{
+						const XrVector3f eye = toPanel(locatedViews[v].pose.position);
+						// Image plane sits a bit behind the panel front so the
+						// housing quad never shares the content quad's plane
+						// (compositor z-fighting -> flicker).
+						const float planeZ = -kHousingPlaneOffset;
+						const float dz = eye.z - planeZ;
+						if (dz < 0.03f)
+						{
+							// Eye (almost) in or behind the panel plane: no
+							// sensible planar projection.
+							ok = false;
+							break;
+						}
+						// Off-axis frustum through the quad rectangle at z = planeZ.
+						XrFovf fov{};
+						fov.angleLeft = atanf((-quadW * 0.5f - eye.x) / dz);
+						fov.angleRight = atanf((quadW * 0.5f - eye.x) / dz);
+						fov.angleUp = atanf((quadH * 0.5f - eye.y) / dz);
+						fov.angleDown = atanf((-quadH * 0.5f - eye.y) / dz);
+						const XrPosef eyePose{ { 0.0f, 0.0f, 0.0f, 1.0f }, eye };
+
+						PanelSwapchain* color = EnsurePanelSwapchain(session, inst.key + (v == 0 ? "_housingL" : "_housingR"), w, h);
+						if (color == nullptr || color->images.empty())
+						{
+							ok = false;
+							break;
+						}
+						uint32_t colorIndex = 0;
+						if (XR_FAILED(acquireImage(color->swapchain, nullptr, &colorIndex)))
+						{
+							ok = false;
+							break;
+						}
+						XrSwapchainImageWaitInfo waitInfo{ XR_TYPE_SWAPCHAIN_IMAGE_WAIT_INFO };
+						waitInfo.timeout = XR_INFINITE_DURATION;
+						const bool colorReady = XR_SUCCEEDED(waitImage(color->swapchain, &waitInfo));
+
+						ok = colorReady && HousingRenderer::RenderEye(
+							g_d3dDevice, g_d3dContext, color->images[colorIndex],
+							static_cast<DXGI_FORMAT>(color->format),
+							static_cast<uint32_t>(w), static_cast<uint32_t>(h),
+							eyePose, fov, headLocal, single, housingLighting, nullptr);
+
+						XrSwapchainImageReleaseInfo releaseInfo{ XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO };
+						releaseImage(color->swapchain, &releaseInfo);
+
+						XrCompositionLayerQuad& q = eyeQuads[v];
+						q = XrCompositionLayerQuad{ XR_TYPE_COMPOSITION_LAYER_QUAD };
+						q.layerFlags = XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT;
+						q.space = mesh.space;
+						q.eyeVisibility = v == 0 ? XR_EYE_VISIBILITY_LEFT : XR_EYE_VISIBILITY_RIGHT;
+						q.subImage.swapchain = color->swapchain;
+						q.subImage.imageRect.offset = { 0, 0 };
+						q.subImage.imageRect.extent = { w, h };
+						q.subImage.imageArrayIndex = 0;
+						q.pose = inst.pose;
+						const XrVector3f back = QuatRotateVector(inst.pose.orientation, XrVector3f{ 0.0f, 0.0f, planeZ });
+						q.pose.position = { inst.pose.position.x + back.x, inst.pose.position.y + back.y, inst.pose.position.z + back.z };
+						q.size.width = quadW;
+						q.size.height = quadH;
+					}
+
+					if (ok)
+					{
+						meshQuads.push_back(eyeQuads[0]);
+						meshQuads.push_back(eyeQuads[1]);
+					}
+					else if ((s_frameLogCounter % 90) == 1)
+					{
+						Logging::Log("Hook_xrEndFrame: mesh housing skipped for one panel (eye behind panel plane or swapchain/render failure).");
+					}
+				}
+
+				if ((s_frameLogCounter % 300) == 1 && !meshQuads.empty())
+				{
+					const auto& q = meshQuads.front();
+					Logging::Log("Hook_xrEndFrame: mesh housing quads=" + std::to_string(meshQuads.size()) +
+						" size=" + std::to_string(q.size.width) + "x" + std::to_string(q.size.height) +
+						" tex=" + std::to_string(q.subImage.imageRect.extent.width) + "x" + std::to_string(q.subImage.imageRect.extent.height) +
+						" eyeL=(" + std::to_string(locatedViews[0].pose.position.x) + ", " + std::to_string(locatedViews[0].pose.position.y) + ", " +
+						std::to_string(locatedViews[0].pose.position.z) + ").");
+				}
+			}
+			else if ((s_frameLogCounter % 90) == 1)
+			{
+				Logging::Log("Hook_xrEndFrame: mesh housing skipped (xrLocateViews in panel space failed).");
+			}
+		}
+
         // Feed the image light probe (app's first eye image) that shades the
         // housing faces; the result is used from the next frame on.
         if (anyHousedPanel && g_d3dDevice != nullptr && g_d3dContext != nullptr)
@@ -2075,10 +2275,14 @@ namespace
             }
         }
 
-        combinedLayers.reserve(frameEndInfo->layerCount + quads.size() + 2);
+        combinedLayers.reserve(frameEndInfo->layerCount + quads.size() + meshQuads.size() + 2);
         for (uint32_t i = 0; i < frameEndInfo->layerCount; ++i)
         {
             combinedLayers.push_back(frameEndInfo->layers[i]);
+        }
+        for (const auto& quad : meshQuads)
+        {
+            combinedLayers.push_back(reinterpret_cast<const XrCompositionLayerBaseHeader*>(&quad));
         }
         for (const auto& quad : quads)
         {
@@ -2254,6 +2458,7 @@ namespace HookedFunctions
         nextGetInstanceProcAddr(instance, "xrCreateReferenceSpace", reinterpret_cast<PFN_xrVoidFunction*>(&g_next.xrCreateReferenceSpace));
         nextGetInstanceProcAddr(instance, "xrDestroySpace", reinterpret_cast<PFN_xrVoidFunction*>(&g_next.xrDestroySpace));
         nextGetInstanceProcAddr(instance, "xrLocateSpace", reinterpret_cast<PFN_xrVoidFunction*>(&g_next.xrLocateSpace));
+        nextGetInstanceProcAddr(instance, "xrLocateViews", reinterpret_cast<PFN_xrVoidFunction*>(&g_next.xrLocateViews));
         nextGetInstanceProcAddr(instance, "xrAttachSessionActionSets", reinterpret_cast<PFN_xrVoidFunction*>(&g_next.xrAttachSessionActionSets));
 
         Logging::Log("OnInstanceCreated: hooks installed, starting IPC server.");
