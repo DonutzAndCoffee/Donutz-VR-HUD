@@ -1285,6 +1285,10 @@ namespace Donutz_VR_HUD
             panel.PropertyChanged += Panel_PropertyChanged;
             Panels.Add(panel);
             PushTransform(panel);
+            if (_ipcClient is not null)
+            {
+                _ = StartPanelSourceAsync(panel);
+            }
             SaveSettings();
         }
 

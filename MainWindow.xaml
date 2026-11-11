@@ -152,14 +152,20 @@
                                 </MultiBinding>
                             </Border.BorderBrush>
                             <StackPanel>
-                                <DockPanel>
-                                    <Button DockPanel.Dock="Right" Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Remove]}" Click="RemovePanelButton_Click" Tag="{Binding}"/>
-                                    <CheckBox Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Lock]}" IsChecked="{Binding IsLocked}" VerticalAlignment="Center" Margin="0,0,12,0"/>
-                                    <CheckBox Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Active]}" IsChecked="{Binding IsEnabled}" VerticalAlignment="Center" Margin="0,0,12,0"/>
-                                    <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" Width="140" Margin="0,0,12,0"/>
-                                </DockPanel>
+                                <Expander IsExpanded="False">
+                                    <Expander.Header>
+                                        <DockPanel>
+                                            <CheckBox Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Lock]}" IsChecked="{Binding IsLocked}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                            <CheckBox Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Active]}" IsChecked="{Binding IsEnabled}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                            <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" Width="140" Margin="0,0,12,0"/>
+                                        </DockPanel>
+                                    </Expander.Header>
+                                    <StackPanel Margin="0,8,0,0">
+                                        <DockPanel Margin="0,0,0,8">
+                                            <Button DockPanel.Dock="Right" Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Remove]}" Click="RemovePanelButton_Click" Tag="{Binding}"/>
+                                        </DockPanel>
 
-                                <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                        <StackPanel Orientation="Horizontal">
                                     <RadioButton Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Source.Window]}" IsChecked="{Binding SourceType, Converter={StaticResource SourceTypeConverter}, ConverterParameter=WindowCapture}" GroupName="{Binding Id}" Margin="0,0,12,0"/>
                                     <RadioButton Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Source.WebDashboard]}" IsChecked="{Binding SourceType, Converter={StaticResource SourceTypeConverter}, ConverterParameter=WebDashboard}" GroupName="{Binding Id}" Margin="0,0,12,0"/>
                                     <RadioButton Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Source.TestPattern]}" IsChecked="{Binding SourceType, Converter={StaticResource SourceTypeConverter}, ConverterParameter=TestPattern}" GroupName="{Binding Id}" Margin="0,0,12,0"/>
@@ -561,6 +567,8 @@
                                         </Grid>
                                     </GroupBox>
                                 </StackPanel>
+                            </StackPanel>
+                                </Expander>
                             </StackPanel>
                         </Border>
                     </DataTemplate>
