@@ -75,8 +75,7 @@ float4 PSMain(PSIn input) : SV_TARGET
 	if (input.albedo.a < -0.5)
 	{
 		uint index = (uint)clamp(-input.albedo.a - 1.0, 0.0, 255.0);
-		float f = 0.04 + 0.96 * pow(1.0 - ndv, 5.0);
-		color = ledColors[index].rgb * misc.y + Hemisphere(r.y) * f * 0.12 + float3(0.002, 0.002, 0.003);
+		color = ledColors[index].rgb * misc.y;
 	}
 	else if (input.albedo.a < 0.5)
 	{
@@ -255,6 +254,7 @@ float4 PSMain(PSIn input) : SV_TARGET
 		const float hh = inst.heightMeters * 0.5f;
 		const float bezel = std::clamp(p.bezelWidthMm, 1.0f, 100.0f) * 0.001f;
 		const float depth = std::clamp(p.depthMm, 2.0f, 200.0f) * 0.001f;
+		const float recess = std::clamp(p.displayRecessMm, 0.0f, 20.0f) * 0.001f;
 		const float ow = hw + bezel;
 		const float oh = hh + bezel;
 		const float roughness = std::clamp(p.roughness, 0.05f, 1.0f);
@@ -285,7 +285,6 @@ float4 PSMain(PSIn input) : SV_TARGET
 		}
 
 		// Recessed display opening + inner lip.
-		const float recess = HousingRenderer::kRecessMeters;
 		const float openRadius = (std::max)(0.0f, frontRadius - bezel);
 		const auto openFront = Outline(hw, hh, openRadius, 0.0f, segments);
 		const auto openBack = Outline(hw, hh, openRadius, -recess, segments);
@@ -317,8 +316,8 @@ float4 PSMain(PSIn input) : SV_TARGET
 			PushTri(out, centre, back[(i + 1) % back.size()], back[i], albedo, roughness, metallic);
 		}
 
-		// Opaque dark display surface at the bottom of the recess.
-		const Vec3 dc{ 0.0f, 0.0f, -recess };
+		// Opaque dark display backing sits just behind the display plane.
+		const Vec3 dc{ 0.0f, 0.0f, -recess - 0.0005f };
 		for (size_t i = 0; i < openBack.size(); ++i)
 		{
 			PushTri(out, dc, openBack[i], openBack[(i + 1) % openBack.size()], glass, 0.15f, 0.0f);
@@ -362,7 +361,7 @@ float4 PSMain(PSIn input) : SV_TARGET
 	{
 		const auto& p = inst.params;
 		std::string s = std::to_string(inst.widthMeters) + "|" + std::to_string(inst.heightMeters) + "|" +
-			std::to_string(p.bezelWidthMm) + "|" + std::to_string(p.depthMm) + "|" + std::to_string(p.cornerRadiusMm) + "|" +
+			std::to_string(p.bezelWidthMm) + "|" + std::to_string(p.depthMm) + "|" + std::to_string(p.displayRecessMm) + "|" + std::to_string(p.cornerRadiusMm) + "|" +
 			std::to_string(p.colorR) + "|" + std::to_string(p.colorG) + "|" + std::to_string(p.colorB) + "|" +
 			std::to_string(p.roughness) + "|" + std::to_string(p.metallic) + "|led" + std::to_string(inst.leds.width);
 		for (const auto& edge : inst.leds.edges)

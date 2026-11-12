@@ -148,6 +148,7 @@ namespace IpcServer
 		uint8_t style;
 		float bezelWidthMm;
 		float depthMm;
+		float displayRecessMm;
 		float colorR, colorG, colorB;
 		float roughness;
 		float metallic;

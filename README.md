@@ -21,7 +21,7 @@ The two components communicate via a local **named pipe IPC channel** (panel tra
   - Panel highlight overlays
   - Test pattern (for calibration)
 - Per-panel **head-locked** or **cockpit-fixed** placement, with optional opaque or alpha-blended background.
-- Optional per-panel **3D housing**: a bezel/case that adapts to the panel size (configurable bezel width, depth, color, roughness, metallic and corner size). It is lit only by the sim's own rendered image, so it automatically gets dark at night or in tunnels.
+- Optional per-panel **3D housing**: a bezel/case that adapts to the panel size (configurable bezel width, depth, display recess, color, roughness, metallic and corner size). It is lit only by the sim's own rendered image, so it automatically gets dark at night or in tunnels.
 - **VR controller interaction** (experimental): grab-and-move panels with the grip button and fine-nudge them with the thumbstick, using standard OpenXR actions — no SteamVR-specific SDK required, so it works with any OpenXR runtime.
 - **Profiles** for saving/restoring different panel layouts per game or session.
 - **SimHub** integration for telemetry data and optional per-housing LED effects on all four edges.
@@ -72,13 +72,17 @@ Protocol v1: ASCII `DLED`, version byte `1`, reserved byte `0`, little-endian `u
 ## Installation (prebuilt release)
 
 1. Install the [.NET 10 Desktop Runtime (x64)](https://dotnet.microsoft.com/download/dotnet/10.0) if not already present.
-2. Download `DonutzVRHUD-v1.6.0-win-x64.zip` from the [Releases](https://github.com/DonutzAndCoffee/Donutz-VR-HUD/releases) page and extract it to a permanent folder (the OpenXR layer is registered from this location).
+2. Download `DonutzVRHUD-v1.6.1-win-x64.zip` from the [Releases](https://github.com/DonutzAndCoffee/Donutz-VR-HUD/releases) page and extract it to a permanent folder (the OpenXR layer is registered from this location).
 3. Start `Donutz VR HUD.exe` and use the layer registration button in the app to register the OpenXR API layer (requires administrator rights).
 4. Start your OpenXR sim (e.g. iRacing) in VR.
 
 When upgrading, close the HUD and your VR application, extract the complete new package, and register the layer from the new location. The v1.6 app and native layer use an updated LED IPC format and must be updated together. Follow the SimHub LED setup above to install or update the bridge.
 
 ## Changelog
+
+### v1.6.1
+- Added a per-panel display recess setting (0–20 mm, default 3 mm) for the 3D housing.
+- LED colors now render without ambient reflections, keeping fast color transitions such as red/blue flashing distinct.
 
 ### v1.6.0
 - Optional SimHub-driven LEDs on the top, bottom, left and right housing edges, with separate channel ranges and order per edge and per panel.

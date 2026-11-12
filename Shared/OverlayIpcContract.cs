@@ -201,6 +201,7 @@ namespace Donutz_VR_HUD.Shared
         public byte Style;
         public float BezelWidthMm;
         public float DepthMm;
+        public float DisplayRecessMm;
         public float ColorR, ColorG, ColorB;
         public float Roughness;
         public float Metallic;

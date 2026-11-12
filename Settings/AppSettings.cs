@@ -61,6 +61,7 @@ namespace Donutz_VR_HUD.Settings
         public bool HousingEnabled { get; set; }
         public float HousingBezelWidthMm { get; set; } = 12f;
         public float HousingDepthMm { get; set; } = 25f;
+        public float HousingDisplayRecessMm { get; set; } = 3f;
         public string HousingColor { get; set; } = "#202022";
         public float HousingRoughness { get; set; } = 0.6f;
         public float HousingMetallic { get; set; }
@@ -118,6 +119,7 @@ namespace Donutz_VR_HUD.Settings
             HousingEnabled = panel.HousingEnabled,
             HousingBezelWidthMm = panel.HousingBezelWidthMm,
             HousingDepthMm = panel.HousingDepthMm,
+            HousingDisplayRecessMm = panel.HousingDisplayRecessMm,
             HousingColor = panel.HousingColor,
             HousingRoughness = panel.HousingRoughness,
             HousingMetallic = panel.HousingMetallic,
@@ -212,6 +214,7 @@ namespace Donutz_VR_HUD.Settings
                 HousingEnabled = HousingEnabled,
                 HousingBezelWidthMm = HousingBezelWidthMm > 0 ? HousingBezelWidthMm : 12f,
                 HousingDepthMm = HousingDepthMm > 0 ? HousingDepthMm : 25f,
+                HousingDisplayRecessMm = HousingDisplayRecessMm,
                 HousingColor = HousingColor ?? "#202022",
                 HousingRoughness = HousingRoughness,
                 HousingMetallic = HousingMetallic,

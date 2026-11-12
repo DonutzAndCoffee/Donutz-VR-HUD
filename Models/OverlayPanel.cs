@@ -151,6 +151,10 @@ namespace Donutz_VR_HUD.Models
         private float _housingDepthMm = 25f;
         public float HousingDepthMm { get => _housingDepthMm; set => Set(ref _housingDepthMm, value); }
 
+        /// <summary>Distance from the bezel's front to the display surface, in millimeters.</summary>
+        private float _housingDisplayRecessMm = 3f;
+        public float HousingDisplayRecessMm { get => _housingDisplayRecessMm; set => Set(ref _housingDisplayRecessMm, float.IsFinite(value) ? Math.Clamp(value, 0f, 20f) : 3f); }
+
         /// <summary>Housing base color ("#RRGGBB").</summary>
         private string _housingColor = "#202022";
         public string HousingColor { get => _housingColor; set => Set(ref _housingColor, value); }

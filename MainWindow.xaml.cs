@@ -2060,6 +2060,7 @@ namespace Donutz_VR_HUD
                 case nameof(OverlayPanel.HousingEnabled):
                 case nameof(OverlayPanel.HousingBezelWidthMm):
                 case nameof(OverlayPanel.HousingDepthMm):
+                case nameof(OverlayPanel.HousingDisplayRecessMm):
                 case nameof(OverlayPanel.HousingColor):
                 case nameof(OverlayPanel.HousingRoughness):
                 case nameof(OverlayPanel.HousingMetallic):
@@ -2145,6 +2146,7 @@ namespace Donutz_VR_HUD
                 Style = 0,
                 BezelWidthMm = Math.Clamp(panel.HousingBezelWidthMm, 1f, 100f),
                 DepthMm = Math.Clamp(panel.HousingDepthMm, 2f, 200f),
+                DisplayRecessMm = Math.Clamp(panel.HousingDisplayRecessMm, 0f, 20f),
                 ColorR = color.R / 255f, ColorG = color.G / 255f, ColorB = color.B / 255f,
                 Roughness = Math.Clamp(panel.HousingRoughness, 0.05f, 1f),
                 Metallic = Math.Clamp(panel.HousingMetallic, 0f, 1f),

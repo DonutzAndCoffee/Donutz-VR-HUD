@@ -55,8 +55,5 @@ namespace HousingRenderer
 	constexpr float kNearZ = 0.02f;
 	constexpr float kFarZ = 50.0f;
 
-	// Display recess behind the front bezel plane, in meters.
-	constexpr float kRecessMeters = 0.001f;
-
 	void Reset();
 }

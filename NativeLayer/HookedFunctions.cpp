@@ -980,21 +980,18 @@ namespace
     }
 
     // Builds the housing faces around a display of width x height centred
-    // at `pose` (the display/content plane). `back` receives the faces drawn
-    // before the panel content, `front` those drawn after it. The bezel's
-    // front plane sits kDisplayRecessMeters in front of the display, so the
-    // display appears set into the housing.
+    // at `pose` (the housing front plane). `back` receives the faces drawn
+    // before the panel content, `front` those drawn after it.
     void BuildHousingQuads(XrSession session, const std::string& key, const XrCompositionLayerQuad& contentQuad,
         const XrPosef& pose, float width, float height, const IpcServer::HousingParams& p,
         const donutz::ProbeLighting& lighting, const XrPosef& headPose,
         std::vector<XrCompositionLayerQuad>& back, std::vector<XrCompositionLayerQuad>& front)
     {
-        constexpr float kDisplayRecessMeters = 0.001f;
         const float hw = width * 0.5f;
         const float hh = height * 0.5f;
         const float bezel = std::clamp(p.bezelWidthMm, 1.0f, 100.0f) * 0.001f;
         const float depth = std::clamp(p.depthMm, 2.0f, 200.0f) * 0.001f;
-        const float r = kDisplayRecessMeters;
+        const float recess = std::clamp(p.displayRecessMm, 0.0f, 20.0f) * 0.001f;
         const float ow = hw + bezel;
         const float oh = hh + bezel;
         // Limited so the corner never cuts into the display backing below.
@@ -1041,10 +1038,10 @@ namespace
             out.push_back(q);
         };
 
-        // Behind the content: outer walls (bezel front plane back to the
+        // Behind the content: outer walls (housing front plane back to the
         // rear of the housing), then the switched-off display.
-        const float wallZ = (r - depth) * 0.5f;
-        const float wallLen = depth + r;
+        const float wallZ = -depth * 0.5f;
+        const float wallLen = depth;
         // Walls are shortened by the corner radius so they don't stick out
         // past the rounded bezel corners.
         // Corner strips are tangent to the rounded bezel outline (circumscribed),
@@ -1175,19 +1172,16 @@ namespace
                 q.size = { 2.0f * ow, 2.0f * oh };
                 // Pushed after the bezel below (see end of function).
                 backPlate = q;
-                hasBackPlate = true;
-            }
-        }
-        // Switched-off display backing: slightly behind the content plane so
-        // runtimes that depth-test quads cannot z-fight it with the content,
-        // and reaching halfway under the bezel so it closes the recess edges
-        // seen at an angle without poking out of rounded outer corners.
-        constexpr float kBackingOffsetMeters = 0.0005f;
-        face(back, "screen", { 0.0f, 0.0f, -kBackingOffsetMeters }, identity, 2.0f * hw + bezel, 2.0f * hh + bezel, { 0.0f, 0.0f, 1.0f }, true);
+				hasBackPlate = true;
+			}
+		}
+		// Switched-off display backing sits just behind the recessed content
+		// plane and reaches halfway under the bezel to close the recess edges.
+		constexpr float kBackingOffsetMeters = 0.0005f;
+		face(back, "screen", { 0.0f, 0.0f, -recess - kBackingOffsetMeters }, identity, 2.0f * hw + bezel, 2.0f * hh + bezel, { 0.0f, 0.0f, 1.0f }, true);
 
-        		// In front of the content: the bezel as one quad, 1 mm in front of
-		// the display plane, per-pixel shaded (bevels, gradient, highlight)
-		// with rounded outer corners.
+		// The bezel is drawn on the housing front plane, per-pixel shaded
+		// (bevels, gradient, highlight) with rounded outer corners.
 		BezelGeometry geometry{};
 		geometry.hw = hw;
 		geometry.hh = hh;
@@ -1197,7 +1191,7 @@ namespace
 		geometry.outerBevel = (std::max)((std::min)(bezel * 0.35f, 0.003f), 0.0005f);
 		geometry.innerBevel = (std::max)((std::min)(bezel * 0.2f, 0.0015f), 0.0003f);
 
-		const XrVector3f faceCenter{ 0.0f, 0.0f, r };
+		const XrVector3f faceCenter{ 0.0f, 0.0f, 0.0f };
 		auto shade = [&](const XrVector3f& normal, float* out)
 		{
 			const ControllerInput::VisualColor c = ShadeHousingSurface(p, lighting, pose.orientation, normal, eyeLocal, faceCenter);
@@ -1783,6 +1777,12 @@ namespace
                     screenHeight = (content.v1 - content.v0) * panel.heightMeters;
                 }
 
+                const float displayRecess = std::clamp(panel.housing.displayRecessMm, 0.0f, 20.0f) * 0.001f;
+                XrCompositionLayerQuad recessedQuad = quad;
+                const XrVector3f recessOffset = QuatRotateVector(quad.pose.orientation, XrVector3f{ 0.0f, 0.0f, -displayRecess });
+                recessedQuad.pose.position = { quad.pose.position.x + recessOffset.x,
+                    quad.pose.position.y + recessOffset.y, quad.pose.position.z + recessOffset.z };
+
                 if (panel.housing.renderMode == 1 && g_d3dDevice != nullptr && g_d3dContext != nullptr)
                 {
                     // Mesh mode: housing goes into a shared projection layer
@@ -1801,7 +1801,7 @@ namespace
                         : 2048.0f;
                     meshHousings.push_back(std::move(mesh));
                     meshRenderScale = (std::max)(meshRenderScale, std::clamp(panel.housing.renderScale, 0.5f, 2.0f));
-                    quads.push_back(quad);
+                    quads.push_back(recessedQuad);
                     anyHousedPanel = true;
                     continue;
                 }
@@ -1825,7 +1825,7 @@ namespace
                 BuildHousingQuads(session, key, quad, screenPose, screenWidth, screenHeight,
                     panel.housing, housingLighting, headPose, housingBack, housingFront);
                 quads.insert(quads.end(), housingBack.begin(), housingBack.end());
-                quads.push_back(quad);
+                quads.push_back(recessedQuad);
                 quads.insert(quads.end(), housingFront.begin(), housingFront.end());
                 anyHousedPanel = true;
                 continue;
