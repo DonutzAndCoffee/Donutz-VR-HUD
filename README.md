@@ -33,6 +33,9 @@ The two components communicate via a local **named pipe IPC channel** (panel tra
 
 <img width="2560" height="1440" alt="Screenshot 2026-09-27 06-24-59" src="https://github.com/user-attachments/assets/6bccecb7-72d9-4066-8698-42a4f3346338" />
 
+<img width="1444" height="361" alt="image" src="https://github.com/user-attachments/assets/a2bbcea6-cd5e-47bb-a094-b6852a79c5f6" />
+
+
 
 
 ## SimHub RPM LEDs
