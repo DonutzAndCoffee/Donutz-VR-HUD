@@ -68,6 +68,25 @@ namespace Donutz_VR_HUD.Settings
         public HousingRenderMode HousingRenderMode { get; set; } = HousingRenderMode.Quads;
         public float HousingRenderScale { get; set; } = 1f;
         public string HousingProfileName { get; set; } = HousingProfile.DefaultName;
+        public bool HousingLedsEnabled { get; set; }
+        public int HousingLedCount { get; set; } = 16;
+        public int HousingLedStart { get; set; } = 1;
+        public float HousingLedBrightness { get; set; } = 0.6f;
+        public float HousingLedWidth { get; set; } = 0.8f;
+        public bool HousingLedReverse { get; set; }
+        public bool HousingLedTopEnabled { get; set; } = true;
+        public bool HousingLedBottomEnabled { get; set; }
+        public int HousingLedBottomCount { get; set; } = 16;
+        public int HousingLedBottomStart { get; set; } = 17;
+        public bool HousingLedBottomReverse { get; set; }
+        public bool HousingLedLeftEnabled { get; set; }
+        public int HousingLedLeftCount { get; set; } = 8;
+        public int HousingLedLeftStart { get; set; } = 33;
+        public bool HousingLedLeftReverse { get; set; }
+        public bool HousingLedRightEnabled { get; set; }
+        public int HousingLedRightCount { get; set; } = 8;
+        public int HousingLedRightStart { get; set; } = 41;
+        public bool HousingLedRightReverse { get; set; }
 
         public static PanelSettings FromPanel(OverlayPanel panel) => new()
         {
@@ -106,6 +125,25 @@ namespace Donutz_VR_HUD.Settings
             HousingRenderMode = panel.HousingRenderMode,
             HousingRenderScale = panel.HousingRenderScale,
             HousingProfileName = panel.HousingProfileName,
+            HousingLedsEnabled = panel.HousingLedsEnabled,
+            HousingLedCount = panel.HousingLedCount,
+            HousingLedStart = panel.HousingLedStart,
+            HousingLedBrightness = panel.HousingLedBrightness,
+            HousingLedWidth = panel.HousingLedWidth,
+            HousingLedReverse = panel.HousingLedReverse,
+            HousingLedTopEnabled = panel.HousingLedTopEnabled,
+            HousingLedBottomEnabled = panel.HousingLedBottomEnabled,
+            HousingLedBottomCount = panel.HousingLedBottomCount,
+            HousingLedBottomStart = panel.HousingLedBottomStart,
+            HousingLedBottomReverse = panel.HousingLedBottomReverse,
+            HousingLedLeftEnabled = panel.HousingLedLeftEnabled,
+            HousingLedLeftCount = panel.HousingLedLeftCount,
+            HousingLedLeftStart = panel.HousingLedLeftStart,
+            HousingLedLeftReverse = panel.HousingLedLeftReverse,
+            HousingLedRightEnabled = panel.HousingLedRightEnabled,
+            HousingLedRightCount = panel.HousingLedRightCount,
+            HousingLedRightStart = panel.HousingLedRightStart,
+            HousingLedRightReverse = panel.HousingLedRightReverse,
             Name = panel.Name,
             IsEnabled = panel.IsEnabled,
             SourceType = panel.SourceType,
@@ -180,7 +218,26 @@ namespace Donutz_VR_HUD.Settings
                 HousingCornerRadiusMm = HousingCornerRadiusMm >= 0 ? HousingCornerRadiusMm : 4f,
                 HousingRenderMode = HousingRenderMode,
                 HousingRenderScale = HousingRenderScale > 0 ? HousingRenderScale : 1f,
-                HousingProfileName = HousingProfileName ?? HousingProfile.DefaultName
+                HousingProfileName = HousingProfileName ?? HousingProfile.DefaultName,
+                HousingLedsEnabled = HousingLedsEnabled,
+                HousingLedCount = HousingLedCount,
+                HousingLedStart = HousingLedStart,
+                HousingLedBrightness = HousingLedBrightness,
+                HousingLedWidth = HousingLedWidth,
+                HousingLedReverse = HousingLedReverse,
+                HousingLedTopEnabled = HousingLedTopEnabled,
+                HousingLedBottomEnabled = HousingLedBottomEnabled,
+                HousingLedBottomCount = Math.Clamp(HousingLedBottomCount, 1, 64),
+                HousingLedBottomStart = Math.Clamp(HousingLedBottomStart, 1, 256),
+                HousingLedBottomReverse = HousingLedBottomReverse,
+                HousingLedLeftEnabled = HousingLedLeftEnabled,
+                HousingLedLeftCount = Math.Clamp(HousingLedLeftCount, 1, 64),
+                HousingLedLeftStart = Math.Clamp(HousingLedLeftStart, 1, 256),
+                HousingLedLeftReverse = HousingLedLeftReverse,
+                HousingLedRightEnabled = HousingLedRightEnabled,
+                HousingLedRightCount = Math.Clamp(HousingLedRightCount, 1, 64),
+                HousingLedRightStart = Math.Clamp(HousingLedRightStart, 1, 256),
+                HousingLedRightReverse = HousingLedRightReverse
             };
 
             return panel;
@@ -242,6 +299,9 @@ namespace Donutz_VR_HUD.Settings
         /// be restored via the tray icon or fully exited via its context menu.
         /// </summary>
         public bool CloseToTray { get; set; }
+
+        /// <summary>Optional manually selected SimHub installation folder.</summary>
+        public string? SimHubDirectory { get; set; }
 
         /// <summary>
         /// Legacy UI language setting ("de" or "en") kept only for backward

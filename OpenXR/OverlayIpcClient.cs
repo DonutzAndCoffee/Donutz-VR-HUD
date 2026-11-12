@@ -392,6 +392,21 @@ namespace Donutz_VR_HUD.OpenXR
             Send(OverlayIpcMessageType.SetHousingProfile, payload);
         }
 
+        public void SetHousingLeds(SetHousingLedsMessage message) =>
+            Send(OverlayIpcMessageType.SetHousingLeds, StructToBytes(message));
+
+        public void UpdateLedColors(byte[] rgb)
+        {
+            if (rgb.Length % 3 != 0 || rgb.Length > 256 * 3)
+            {
+                throw new ArgumentException("LED data must contain at most 256 RGB triples.", nameof(rgb));
+            }
+            var payload = new byte[2 + rgb.Length];
+            System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(payload, (ushort)(rgb.Length / 3));
+            rgb.CopyTo(payload, 2);
+            Send(OverlayIpcMessageType.UpdateLedColors, payload);
+        }
+
         private void Send(OverlayIpcMessageType type, byte[] payload)
         {
             var pipe = _pipe;

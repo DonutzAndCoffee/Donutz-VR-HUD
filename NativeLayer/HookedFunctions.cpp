@@ -1794,6 +1794,7 @@ namespace
                     mesh.instance.widthMeters = screenWidth;
                     mesh.instance.heightMeters = screenHeight;
                     mesh.instance.params = panel.housing;
+                    mesh.instance.leds = panel.housingLeds;
                     mesh.instance.profile = &panel.housingProfile;
                     mesh.pixelsPerMeter = panel.widthMeters > 0.001f
                         ? static_cast<float>(panel.frameWidth) / panel.widthMeters

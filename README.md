@@ -24,7 +24,7 @@ The two components communicate via a local **named pipe IPC channel** (panel tra
 - Optional per-panel **3D housing**: a bezel/case that adapts to the panel size (configurable bezel width, depth, color, roughness, metallic and corner size). It is lit only by the sim's own rendered image, so it automatically gets dark at night or in tunnels.
 - **VR controller interaction** (experimental): grab-and-move panels with the grip button and fine-nudge them with the thumbstick, using standard OpenXR actions — no SteamVR-specific SDK required, so it works with any OpenXR runtime.
 - **Profiles** for saving/restoring different panel layouts per game or session.
-- **SimHub** integration for telemetry data.
+- **SimHub** integration for telemetry data and optional per-housing LED effects on all four edges.
 - Automatic detection of the active game/process.
 - English UI.
 - Dark mode support (WPF-UI).
@@ -35,6 +35,27 @@ The two components communicate via a local **named pipe IPC channel** (panel tra
 
 
 
+## SimHub RPM LEDs
+
+Enable **3D housing**, then **SimHub RPM LEDs** on a panel. LEDs can be enabled on each housing edge (top defaults to 16 LEDs). Mesh rendering is used while enabled; disabling LEDs restores the selected housing render mode. Existing profiles keep LEDs disabled.
+
+The HUD does not calculate RPM effects itself. The bundled bridge uses SimHub's LED editor for effects and profiles:
+
+1. In the HUD, open **SimHub LED bridge setup and status** in a panel's LED settings, or open global settings. If SimHub is not found automatically, choose its installation folder.
+2. Close SimHub completely and click **Install / update bridge**. If Windows denies access, accept the administrator restart and click the button again. Only the bridge DLL is copied; no SimHub assemblies are replaced.
+3. Start SimHub, enable **Donutz VR HUD LEDs** in Plugins, and configure its LED effects. The setup shows both the installed DLL version and whether valid LED data is currently arriving; an installed DLL alone does not mean the plugin is enabled. Data reception can be checked without connecting the overlay or starting a game.
+4. In the HUD, enable the housing and desired edges, then connect the overlay. Start with **Start LED = 1**, **LED count = 16**.
+
+Each edge selects a contiguous range from a shared **256-LED color stream**. LED count (1-64), start channel (1-based), and order are saved per edge; width and brightness are shared by the housing. Settings are saved with the panel/profile. Ranges stop at channel 256. Multiple edges or panels can mirror a range or use separate ranges.
+
+For developers and release packaging, first build `NativeLayer\NativeLayer.vcxproj` in Release x64 and `SimHubBridge\Donutz.SimHubLedBridge.csproj` in Release (the bridge requires the .NET Framework 4.8 targeting pack and an installed SimHub). For a non-default SimHub installation, pass `-p:SimHubDirectory="C:\Your\SimHub"`. Publish the HUD afterwards: it includes the native layer and the bridge in `SimHubBridge\Donutz.SimHubLedBridge.dll` next to the executable. Publishing fails if either component was not built; ordinary development builds without the bridge show a missing-package status instead.
+
+The bridge sends full snapshots at approximately 30 Hz over **UDP 127.0.0.1:26741**; the HUD binds only to loopback. Missing/short effects clear unused channels. With no valid update for **2 seconds**, the native renderer switches emission off (also after SimHub or the HUD crashes), leaving the dark reflective lenses visible. Receiver/bind errors and malformed packets are reported in the HUD app log; sender errors appear in SimHub's log. Only one HUD instance can receive on this port.
+
+Protocol v1: ASCII `DLED`, version byte `1`, reserved byte `0`, little-endian `uint16` color count (0-256), then exactly that many RGB byte triples. Bridge snapshots contain 256 colors; alpha is composited against black. Static strip configuration and dynamic colors use separate IPC messages, so animated effects do not rebuild housing meshes.
+
+**Compatibility:** the bridge compiles against the installed SimHub LED engine (`RGBLedsDriver`), which is not part of SimHub's stable public plugin SDK. It was build-checked against the locally installed engine; future SimHub updates may require rebuilding/adapting the bridge. End-to-end testing in SimHub and an OpenXR headset is still required. Material presets/textures are not included.
+
 ## Repository layout
 
 | Path | Description |
@@ -42,6 +63,7 @@ The two components communicate via a local **named pipe IPC channel** (panel tra
 | `Donutz VR HUD.csproj` | WPF configuration UI and overlay frame sources (.NET 10) |
 | `NativeLayer/` | Native C++ OpenXR API layer project (see [`NativeLayer/README.md`](NativeLayer/README.md) for build details) |
 | `Shared/OverlayIpcContract.cs` | Shared IPC message contract between the WPF app and the native layer |
+| `SimHubBridge/` | Optional .NET Framework 4.8 SimHub LED editor bridge (built separately) |
 | `Sources/` | Overlay frame source implementations (web, image, HUD text, window capture, etc.) |
 | `Settings/` | Persisted app settings, profiles, and panel configuration |
 | `OpenXR/` | Managed-side OpenXR layer registration and IPC client |
@@ -50,11 +72,19 @@ The two components communicate via a local **named pipe IPC channel** (panel tra
 ## Installation (prebuilt release)
 
 1. Install the [.NET 10 Desktop Runtime (x64)](https://dotnet.microsoft.com/download/dotnet/10.0) if not already present.
-2. Download `DonutzVRHUD-v1.4.0-win-x64.zip` from the [Releases](https://github.com/DonutzAndCoffee/Donutz-VR-HUD/releases) page and extract it to a permanent folder (the OpenXR layer is registered from this location).
+2. Download `DonutzVRHUD-v1.6.0-win-x64.zip` from the [Releases](https://github.com/DonutzAndCoffee/Donutz-VR-HUD/releases) page and extract it to a permanent folder (the OpenXR layer is registered from this location).
 3. Start `Donutz VR HUD.exe` and use the layer registration button in the app to register the OpenXR API layer (requires administrator rights).
 4. Start your OpenXR sim (e.g. iRacing) in VR.
 
+When upgrading, close the HUD and your VR application, extract the complete new package, and register the layer from the new location. The v1.6 app and native layer use an updated LED IPC format and must be updated together. Follow the SimHub LED setup above to install or update the bridge.
+
 ## Changelog
+
+### v1.6.0
+- Optional SimHub-driven LEDs on the top, bottom, left and right housing edges, with separate channel ranges and order per edge and per panel.
+- SimHub bridge bundled with the app, with installation, update and live-data status in the UI. SimHub LED effects and car-specific panel profiles remain independently configurable.
+- OpenXR layer registration moved to the top of global settings; controller fine-tuning is collapsed by default.
+- LED data goes dark after two seconds without updates. The bridge uses SimHub's internal LED engine; compatibility may change with SimHub updates.
 
 ### v1.5.0
 - New optional per-panel 3D housing: bezel/case around the panel with configurable bezel width, depth, color, roughness, metallic and corner size (mm). The display sits 1 mm recessed behind the bezel; the panel content stays fully sharp.

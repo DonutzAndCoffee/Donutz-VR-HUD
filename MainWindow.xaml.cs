@@ -62,6 +62,11 @@ namespace Donutz_VR_HUD
         private readonly DispatcherTimer _autoProfileTimer = new() { Interval = TimeSpan.FromSeconds(3) };
         private long _nativeLogLastLength = -1;
         private OverlayIpcClient? _ipcClient;
+        private SimHubLedReceiver? _ledReceiver;
+        private readonly object _ledForwardLock = new();
+        private readonly DispatcherTimer _ledStatusTimer = new() { Interval = TimeSpan.FromSeconds(1) };
+        private string? _ledReceiverError;
+        private string? _simHubDirectory;
         private bool _isLoadingSettings;
         private bool _isApplyingProfile;
         private bool _autoLoadProfiles;
@@ -181,6 +186,10 @@ namespace Donutz_VR_HUD
             LoadProfiles();
             RefreshLayerStatus();
             LoadVerboseLoggingState();
+            StartLedReceiver();
+            RefreshSimHubBridgeStatus();
+            _ledStatusTimer.Tick += (_, _) => RefreshSimHubConnectionStatus();
+            _ledStatusTimer.Start();
 
             _nativeLogTimer.Tick += (_, _) => RefreshNativeLog();
             _nativeLogTimer.Start();
@@ -451,6 +460,7 @@ namespace Donutz_VR_HUD
             try
             {
                 var settings = SettingsStore.Load();
+                _simHubDirectory = settings.SimHubDirectory;
 
                 if (settings.Panels.Count == 0)
                 {
@@ -594,7 +604,8 @@ namespace Donutz_VR_HUD
                 Panels = Panels.Select(PanelSettings.FromPanel).ToList(),
                 AutoLoadProfiles = _autoLoadProfiles,
                 AutoSaveProfileOnSimExit = _autoSaveProfileOnSimExit,
-                CloseToTray = _closeToTray
+                CloseToTray = _closeToTray,
+                SimHubDirectory = _simHubDirectory
             };
 
             settings.ResetBindings = _resetButtonBinding.Bindings
@@ -2055,7 +2066,27 @@ namespace Donutz_VR_HUD
                 case nameof(OverlayPanel.HousingCornerRadiusMm):
                 case nameof(OverlayPanel.HousingRenderMode):
                 case nameof(OverlayPanel.HousingRenderScale):
+                case nameof(OverlayPanel.HousingLedsEnabled):
+                case nameof(OverlayPanel.HousingLedCount):
+                case nameof(OverlayPanel.HousingLedStart):
+                case nameof(OverlayPanel.HousingLedBrightness):
+                case nameof(OverlayPanel.HousingLedWidth):
+                case nameof(OverlayPanel.HousingLedReverse):
+                case nameof(OverlayPanel.HousingLedTopEnabled):
+                case nameof(OverlayPanel.HousingLedBottomEnabled):
+                case nameof(OverlayPanel.HousingLedBottomCount):
+                case nameof(OverlayPanel.HousingLedBottomStart):
+                case nameof(OverlayPanel.HousingLedBottomReverse):
+                case nameof(OverlayPanel.HousingLedLeftEnabled):
+                case nameof(OverlayPanel.HousingLedLeftCount):
+                case nameof(OverlayPanel.HousingLedLeftStart):
+                case nameof(OverlayPanel.HousingLedLeftReverse):
+                case nameof(OverlayPanel.HousingLedRightEnabled):
+                case nameof(OverlayPanel.HousingLedRightCount):
+                case nameof(OverlayPanel.HousingLedRightStart):
+                case nameof(OverlayPanel.HousingLedRightReverse):
                     _ipcClient?.SetHousingParams(BuildHousingParams(panel));
+                    PushHousingLeds(panel);
                     SaveSettings();
                     break;
                 case nameof(OverlayPanel.HousingProfileName):
@@ -2079,7 +2110,30 @@ namespace Donutz_VR_HUD
                 nonInteractive: panel.SourceType == PanelSourceType.Visor);
             _ipcClient?.SetHousingProfile(panel.Id, HousingProfile.Find(panel.HousingProfileName));
             _ipcClient?.SetHousingParams(BuildHousingParams(panel));
+            PushHousingLeds(panel);
         }
+
+        private void PushHousingLeds(OverlayPanel panel)
+        {
+            bool leds = panel.HousingLedsEnabled && panel.SourceType != PanelSourceType.Visor;
+            static Shared.HousingLedEdge Edge(bool active, int count, int start, bool reverse) => new()
+            {
+                Enabled = active,
+                Count = (byte)Math.Clamp(Math.Min(count, 257 - start), 0, 64),
+                FirstIndex = (ushort)(start - 1),
+                Reverse = reverse
+            };
+            _ipcClient?.SetHousingLeds(new Shared.SetHousingLedsMessage
+            {
+                PanelId = panel.Id,
+                Top = Edge(leds && panel.HousingLedTopEnabled, panel.HousingLedCount, panel.HousingLedStart, panel.HousingLedReverse),
+                Bottom = Edge(leds && panel.HousingLedBottomEnabled, panel.HousingLedBottomCount, panel.HousingLedBottomStart, panel.HousingLedBottomReverse),
+                Left = Edge(leds && panel.HousingLedLeftEnabled, panel.HousingLedLeftCount, panel.HousingLedLeftStart, panel.HousingLedLeftReverse),
+                Right = Edge(leds && panel.HousingLedRightEnabled, panel.HousingLedRightCount, panel.HousingLedRightStart, panel.HousingLedRightReverse),
+                Brightness = panel.HousingLedBrightness,
+                Width = panel.HousingLedWidth
+            });
+            }
 
         private static Shared.SetHousingParamsMessage BuildHousingParams(OverlayPanel panel)
         {
@@ -2095,7 +2149,7 @@ namespace Donutz_VR_HUD
                 Roughness = Math.Clamp(panel.HousingRoughness, 0.05f, 1f),
                 Metallic = Math.Clamp(panel.HousingMetallic, 0f, 1f),
                 CornerRadiusMm = Math.Clamp(panel.HousingCornerRadiusMm, 0f, 50f),
-                RenderMode = (byte)panel.HousingRenderMode,
+                RenderMode = (byte)(panel.HousingLedsEnabled ? HousingRenderMode.Mesh : panel.HousingRenderMode),
                 RenderScale = Math.Clamp(panel.HousingRenderScale, 0.5f, 1f),
             };
         }
@@ -2602,9 +2656,123 @@ namespace Donutz_VR_HUD
             new Views.AboutWindow { Owner = this }.ShowDialog();
         }
 
+        private void StartLedReceiver()
+        {
+            if (_ledReceiver is not null && !_ledReceiver.Completion.IsCompleted) return;
+            _ledReceiver?.Dispose();
+            _ledReceiver = null;
+            _ledReceiverError = null;
+            try
+            {
+                _ledReceiver = new SimHubLedReceiver(colors =>
+                {
+                    lock (_ledForwardLock) _ipcClient?.UpdateLedColors(colors);
+                }, OverlayIpcClient.AppendAppLogEntry);
+                OverlayIpcClient.AppendAppLogEntry($"SimHub LED receiver listening on localhost UDP port {SimHubLedReceiver.Port}.");
+            }
+            catch (System.Net.Sockets.SocketException ex)
+            {
+                _ledReceiverError = ex.Message;
+                OverlayIpcClient.AppendAppLogEntry($"SimHub LED receiver could not start: {ex}");
+            }
+        }
+
+        private void RefreshSimHubConnectionStatus()
+        {
+            SimHubBridgeConnectionStatusText.Text = _ledReceiverError is not null
+                ? $"LED receiver unavailable: {_ledReceiverError}. Check whether another HUD instance is running, then choose Check again."
+                : _ledReceiver is null || _ledReceiver.Completion.IsCompleted
+                    ? "LED receiver stopped. Check the app log and choose Check again."
+                    : _ledReceiver.IsReceiving
+                        ? "Valid LED data received on localhost."
+                        : "No LED data received. Start SimHub and enable the bridge; installation alone does not confirm it is active.";
+        }
+
+        private void RefreshSimHubBridgeStatus()
+        {
+            try
+            {
+                var directory = _simHubDirectory ?? SimHubBridgeInstaller.FindInstallDirectory();
+                var valid = directory is not null && SimHubBridgeInstaller.IsSimHubDirectory(directory);
+                SimHubDirectoryText.Text = valid ? $"SimHub folder: {directory}" : "SimHub folder not found. Choose the folder containing SimHubWPF.exe.";
+                var bundled = File.Exists(SimHubBridgeInstaller.BundledPath);
+                InstallSimHubBridgeButton.IsEnabled = valid && bundled;
+                if (!bundled)
+                    SimHubBridgeInstallStatusText.Text = "Bridge package missing from this HUD installation. Reinstall the HUD with the bridge included.";
+                else if (!valid)
+                    SimHubBridgeInstallStatusText.Text = "Bridge installation cannot be checked until a valid SimHub folder is selected.";
+                else if (!File.Exists(Path.Combine(directory!, SimHubBridgeInstaller.FileName)))
+                    SimHubBridgeInstallStatusText.Text = "Bridge not installed. Close SimHub and select Install / update bridge.";
+                else if (SimHubBridgeInstaller.IsBundledVersionInstalled(directory!))
+                    SimHubBridgeInstallStatusText.Text = "Bridge installed (matches this HUD package). Enable it in SimHub Plugins.";
+                else
+                    SimHubBridgeInstallStatusText.Text = "A different bridge version is installed. Close SimHub and select Install / update bridge to replace it.";
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException or ArgumentException)
+            {
+                InstallSimHubBridgeButton.IsEnabled = false;
+                SimHubBridgeInstallStatusText.Text = $"Could not check the SimHub installation: {ex.Message}";
+                OverlayIpcClient.AppendAppLogEntry($"SimHub bridge status check failed: {ex}");
+            }
+            RefreshSimHubConnectionStatus();
+        }
+
+        private void SimHubBridgeSetupButton_Click(object sender, RoutedEventArgs e)
+        {
+            RefreshSimHubBridgeStatus();
+            GlobalSettingsPopup.IsOpen = true;
+        }
+
         private void SettingsToggleButton_Click(object sender, RoutedEventArgs e)
         {
+            if (!GlobalSettingsPopup.IsOpen) RefreshSimHubBridgeStatus();
             GlobalSettingsPopup.IsOpen = !GlobalSettingsPopup.IsOpen;
+        }
+
+        private void RefreshSimHubBridgeButton_Click(object sender, RoutedEventArgs e)
+        {
+            StartLedReceiver();
+            RefreshSimHubBridgeStatus();
+        }
+
+        private void BrowseSimHubButton_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new Microsoft.Win32.OpenFolderDialog { Title = "Select the SimHub installation folder" };
+            if (dialog.ShowDialog(this) != true) return;
+            if (!SimHubBridgeInstaller.IsSimHubDirectory(dialog.FolderName))
+            {
+                MessageBox.Show(this, "This folder must contain SimHubWPF.exe and SimHub.Plugins.dll.", "SimHub LED bridge", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            _simHubDirectory = dialog.FolderName;
+            SaveSettings();
+            RefreshSimHubBridgeStatus();
+            GlobalSettingsPopup.IsOpen = true;
+        }
+
+        private void InstallSimHubBridgeButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var directory = _simHubDirectory ?? SimHubBridgeInstaller.FindInstallDirectory();
+                if (directory is null) throw new InvalidOperationException("Select the SimHub installation folder first.");
+                SimHubBridgeInstaller.Install(directory);
+                OverlayIpcClient.AppendAppLogEntry($"SimHub LED bridge installed in {directory}.");
+                RefreshSimHubBridgeStatus();
+                MessageBox.Show(this, "Bridge installed. Start SimHub, enable 'Donutz VR HUD LEDs' in Plugins and configure its LED effects.", "SimHub LED bridge", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                OverlayIpcClient.AppendAppLogEntry($"SimHub LED bridge installation requires access: {ex}");
+                if (MessageBox.Show(this, "Windows denied access to the SimHub folder. Restart the HUD as administrator and select Install / update bridge again?", "Administrator rights required", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
+                    RestartElevated();
+            }
+            catch (Exception ex) when (ex is IOException or InvalidOperationException or System.Security.SecurityException or ArgumentException or Win32Exception)
+            {
+                OverlayIpcClient.AppendAppLogEntry($"SimHub LED bridge installation failed: {ex}");
+                MessageBox.Show(this, $"Bridge installation failed: {ex.Message}", "SimHub LED bridge", MessageBoxButton.OK, MessageBoxImage.Error);
+                RefreshSimHubBridgeStatus();
+            }
         }
 
         private void NativeLogToggleButton_Click(object sender, RoutedEventArgs e)
@@ -2669,7 +2837,7 @@ namespace Donutz_VR_HUD
                     return false;
                 }
 
-                _ipcClient = ipcClient;
+                lock (_ledForwardLock) _ipcClient = ipcClient;
                 ipcClient.PanelTransformUpdated += OnControllerPanelTransformUpdated;
                 ipcClient.ControllerNudgeActionReceived += OnControllerNudgeActionReceived;
                 ipcClient.ControllerGrabStarted += OnControllerGrabStarted;
@@ -2714,8 +2882,13 @@ namespace Donutz_VR_HUD
                     _ipcClient.RemovePanel(panel.Id);
                 }
             }
-            _ipcClient?.Dispose();
-            _ipcClient = null;
+            OverlayIpcClient? client;
+            lock (_ledForwardLock)
+            {
+                client = _ipcClient;
+                _ipcClient = null;
+            }
+            client?.Dispose();
 
             foreach (var source in _panelSources.Values)
             {
@@ -2769,8 +2942,11 @@ namespace Donutz_VR_HUD
         protected override void OnClosed(EventArgs e)
         {
             _nativeLogTimer.Stop();
+            _ledStatusTimer.Stop();
             SaveSettings();
             StopOverlay();
+            _ledReceiver?.Dispose();
+            _ledReceiver = null;
             _resetButtonBinding.Dispose();
             _visorToggleBinding.Dispose();
             _panelNudgeController.Dispose();

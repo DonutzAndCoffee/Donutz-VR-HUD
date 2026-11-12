@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -45,6 +46,8 @@ namespace IpcServer
 		// Client -> server: housing cross-section profile for mesh mode
 		// (variable length: SetHousingProfileHeader + points).
 		SetHousingProfile = 8,
+		SetHousingLeds = 9,
+		UpdateLedColors = 10,
 
 		// Server -> client.
 		PanelTransformUpdated = 100,
@@ -180,6 +183,29 @@ namespace IpcServer
 		HousingParams params;
 	};
 
+	struct HousingLedEdge
+	{
+		uint8_t enabled;
+		uint8_t count;
+		uint16_t firstIndex;
+		uint8_t reverse;
+	};
+
+	// Edge order: top, bottom, left, right.
+	struct HousingLeds
+	{
+		HousingLedEdge edges[4];
+		float brightness;
+		float width;
+	};
+
+	struct SetHousingLedsPayload
+	{
+		PanelIdBytes panelId;
+		HousingLeds params;
+	};
+	static_assert(sizeof(SetHousingLedsPayload) == 44, "LED IPC layout mismatch");
+
 	// Server -> client: final transform after a VR controller grab ends
 	// (see ControllerInput.cpp), so the managed app can update its
 	// OverlayPanel model and persist the new position/rotation.
@@ -248,7 +274,11 @@ namespace IpcServer
 		bool hasHousing = false;
 		HousingParams housing{};
 		HousingProfile housingProfile{};
+		HousingLeds housingLeds{};
 	};
+
+	using LedColors = std::array<std::array<uint8_t, 3>, 256>;
+	LedColors GetLedColors();
 
 	// Starts the background pipe-server thread on first call; subsequent
 	// calls are no-ops. Safe to call from any thread.

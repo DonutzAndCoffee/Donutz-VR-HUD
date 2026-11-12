@@ -25,14 +25,15 @@ cbuffer Constants : register(b0)
 	float4 eyePos;      // xyz, same space as viewProj
 	float4 sky;         // rgb
 	float4 ground;      // rgb
-	float4 misc;        // x = encode sRGB in shader
+	float4 misc;        // x = encode sRGB, y = LED brightness
+	float4 ledColors[256];
 };
 
 struct VSIn
 {
 	float3 pos : POSITION;
 	float3 normal : NORMAL;
-	float4 albedo : COLOR0;      // rgb linear, a = 1 housing / 0 display
+	float4 albedo : COLOR0;      // rgb linear, a = 1 housing / 0 display / -(LED index + 1)
 	float2 material : TEXCOORD0; // x roughness, y metallic
 };
 
@@ -71,7 +72,13 @@ float4 PSMain(PSIn input) : SV_TARGET
 	float3 r = reflect(-v, n);
 	float3 color;
 
-	if (input.albedo.a < 0.5)
+	if (input.albedo.a < -0.5)
+	{
+		uint index = (uint)clamp(-input.albedo.a - 1.0, 0.0, 255.0);
+		float f = 0.04 + 0.96 * pow(1.0 - ndv, 5.0);
+		color = ledColors[index].rgb * misc.y + Hemisphere(r.y) * f * 0.12 + float3(0.002, 0.002, 0.003);
+	}
+	else if (input.albedo.a < 0.5)
 	{
 		// Switched-off display: near-black glossy glass.
 		float f = 0.04 + 0.96 * pow(1.0 - ndv, 5.0);
@@ -118,6 +125,7 @@ float4 PSMain(PSIn input) : SV_TARGET
 		float sky[4];
 		float ground[4];
 		float misc[4];
+		float ledColors[256][4];
 	};
 
 	struct MeshCache
@@ -315,6 +323,39 @@ float4 PSMain(PSIn input) : SV_TARGET
 		{
 			PushTri(out, dc, openBack[i], openBack[(i + 1) % openBack.size()], glass, 0.15f, 0.0f);
 		}
+
+		// Edges: 0 = top, 1 = bottom (left to right), 2 = left, 3 = right (bottom to top).
+		for (int edgeIndex = 0; edgeIndex < 4; ++edgeIndex)
+		{
+			const auto& edge = inst.leds.edges[edgeIndex];
+			if (!edge.enabled || edge.count == 0)
+			{
+				continue;
+			}
+			const bool horizontal = edgeIndex < 2;
+			const float length = horizontal ? inst.widthMeters : inst.heightMeters;
+			const float pitch = length * inst.leds.width / edge.count;
+			const float radius = (std::min)(bezel * 0.18f, pitch * 0.32f);
+			const float fixedCoord = (horizontal ? hh : hw) + bezel * 0.4f;
+			const float sign = (edgeIndex == 0 || edgeIndex == 3) ? 1.0f : -1.0f;
+			for (uint32_t i = 0; i < edge.count; ++i)
+			{
+				const uint32_t index = edge.firstIndex + (edge.reverse ? edge.count - 1 - i : i);
+				const float lens[4] = { 0, 0, 0, -static_cast<float>(index + 1) };
+				const float along = (static_cast<float>(i) - (edge.count - 1) * 0.5f) * pitch;
+				const float x = horizontal ? along : sign * fixedCoord;
+				const float y = horizontal ? sign * fixedCoord : along;
+				const Vec3 centre{ x, y, 0.0006f + radius * 0.25f };
+				for (uint32_t s = 0; s < 16; ++s)
+				{
+					const float a = s * 6.2831853f / 16;
+					const float b = (s + 1) * 6.2831853f / 16;
+					PushTri(out, centre,
+						{ x + radius * cosf(a), y + radius * sinf(a), 0.0006f },
+						{ x + radius * cosf(b), y + radius * sinf(b), 0.0006f }, lens, 0.15f, 0.0f);
+				}
+			}
+		}
 	}
 
 	std::string Signature(const HousingRenderer::Instance& inst)
@@ -323,7 +364,12 @@ float4 PSMain(PSIn input) : SV_TARGET
 		std::string s = std::to_string(inst.widthMeters) + "|" + std::to_string(inst.heightMeters) + "|" +
 			std::to_string(p.bezelWidthMm) + "|" + std::to_string(p.depthMm) + "|" + std::to_string(p.cornerRadiusMm) + "|" +
 			std::to_string(p.colorR) + "|" + std::to_string(p.colorG) + "|" + std::to_string(p.colorB) + "|" +
-			std::to_string(p.roughness) + "|" + std::to_string(p.metallic);
+			std::to_string(p.roughness) + "|" + std::to_string(p.metallic) + "|led" + std::to_string(inst.leds.width);
+		for (const auto& edge : inst.leds.edges)
+		{
+			s += "|" + std::to_string(edge.enabled) + "," + std::to_string(edge.count) + "," +
+				std::to_string(edge.firstIndex) + "," + std::to_string(edge.reverse);
+		}
 		if (inst.profile != nullptr)
 		{
 			s += "|r" + std::to_string(inst.profile->revision) + "|n" + std::to_string(inst.profile->points.size());
@@ -673,6 +719,10 @@ namespace HousingRenderer
 		constants.sky[0] = lighting.skyR; constants.sky[1] = lighting.skyG; constants.sky[2] = lighting.skyB;
 		constants.ground[0] = lighting.groundR; constants.ground[1] = lighting.groundG; constants.ground[2] = lighting.groundB;
 		constants.misc[0] = (!IsSrgb(rtvFormat) && IsUnormLdr(rtvFormat)) ? 1.0f : 0.0f;
+		const auto ledColors = IpcServer::GetLedColors();
+		for (size_t i = 0; i < ledColors.size(); ++i)
+			for (size_t c = 0; c < 3; ++c)
+				constants.ledColors[i][c] = SrgbToLinear(ledColors[i][c] / 255.0f);
 
 		ComPtr<ID3DDeviceContextState> previousState;
 		context1->SwapDeviceContextState(g_state.Get(), &previousState);
@@ -706,6 +756,7 @@ namespace HousingRenderer
 		for (const auto& [mesh, inst] : draws)
 		{
 			BuildWorld(inst->pose, constants.world);
+			constants.misc[1] = inst->leds.brightness;
 			D3D11_MAPPED_SUBRESOURCE mapped{};
 			if (SUCCEEDED(context->Map(g_cb.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped)))
 			{

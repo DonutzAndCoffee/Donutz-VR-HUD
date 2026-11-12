@@ -5,6 +5,8 @@
 
 #include <algorithm>
 #include <atomic>
+#include <chrono>
+#include <cmath>
 #include <cstring>
 #include <mutex>
 #include <thread>
@@ -51,6 +53,8 @@ namespace
 	std::unordered_map<GuidKey, IpcServer::PanelState, GuidKeyHash> g_panels;
 	std::atomic<bool> g_recenterRequested{ false };
 	std::atomic<bool> g_editModeActive{ false };
+	IpcServer::LedColors g_ledColors{};
+	std::chrono::steady_clock::time_point g_ledUpdated{};
 
 	// Outgoing (server -> client) message queue, drained by ServerLoop's
 	// per-connection loop right after each read attempt. A dedicated write
@@ -250,6 +254,49 @@ namespace
 				Logging::Log("IpcServer: housing profile received, points=" + std::to_string(count) + ".");
 			}
 			break;
+		case IpcServer::MessageType::SetHousingLeds:
+			if (payload.size() == sizeof(IpcServer::SetHousingLedsPayload))
+			{
+				IpcServer::SetHousingLedsPayload msg;
+				std::memcpy(&msg, payload.data(), sizeof(msg));
+				bool edgesValid = true;
+				for (const auto& edge : msg.params.edges)
+				{
+					if (edge.enabled && (edge.count < 1 || edge.count > 64 || edge.firstIndex + edge.count > 256))
+					{
+						edgesValid = false;
+					}
+				}
+				if (!edgesValid ||
+					!std::isfinite(msg.params.brightness) || !std::isfinite(msg.params.width) ||
+					msg.params.brightness < 0 || msg.params.brightness > 1 || msg.params.width < 0.1f || msg.params.width > 1)
+				{
+					Logging::Log("IpcServer: invalid housing LED configuration.");
+					break;
+				}
+				std::lock_guard<std::mutex> lock(g_stateMutex);
+				auto& panel = g_panels[ToKey(msg.panelId)];
+				panel.panelId = msg.panelId;
+				panel.housingLeds = msg.params;
+			}
+			else Logging::Log("IpcServer: invalid housing LED payload size.");
+			break;
+		case IpcServer::MessageType::UpdateLedColors:
+			{
+				uint16_t count = 0;
+				if (payload.size() >= sizeof(count)) std::memcpy(&count, payload.data(), sizeof(count));
+				if (count > 256 || payload.size() != sizeof(count) + count * 3)
+				{
+					Logging::Log("IpcServer: invalid LED color payload.");
+					break;
+				}
+				std::lock_guard<std::mutex> lock(g_stateMutex);
+				g_ledColors = {};
+				for (size_t i = 0; i < count; ++i)
+					std::memcpy(g_ledColors[i].data(), payload.data() + sizeof(count) + i * 3, 3);
+				g_ledUpdated = std::chrono::steady_clock::now();
+			}
+			break;
 		case IpcServer::MessageType::SetEditModeActive:
 			if (payload.size() >= sizeof(IpcServer::SetEditModeActivePayload))
 			{
@@ -417,6 +464,13 @@ namespace IpcServer
 		it->second.rotationDegX = rotationDegX;
 		it->second.rotationDegY = rotationDegY;
 		it->second.rotationDegZ = rotationDegZ;
+	}
+
+	LedColors GetLedColors()
+	{
+		std::lock_guard<std::mutex> lock(g_stateMutex);
+		if (std::chrono::steady_clock::now() - g_ledUpdated > std::chrono::seconds(2)) return {};
+		return g_ledColors;
 	}
 
 	void QueuePanelTransformUpdated(const PanelState& panel)

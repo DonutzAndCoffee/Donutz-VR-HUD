@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+	<TargetFramework>net48</TargetFramework>
+	<UseWPF>true</UseWPF>
+	<LangVersion>latest</LangVersion>
+	<SimHubDirectory Condition="'$(SimHubDirectory)' == ''">C:\Program Files (x86)\SimHub</SimHubDirectory>
+  </PropertyGroup>
+  <ItemGroup>
+	<Reference Include="SimHub.Plugins"><HintPath>$(SimHubDirectory)\SimHub.Plugins.dll</HintPath><Private>false</Private></Reference>
+	<Reference Include="GameReaderCommon"><HintPath>$(SimHubDirectory)\GameReaderCommon.dll</HintPath><Private>false</Private></Reference>
+	<Reference Include="WoteverCommon"><HintPath>$(SimHubDirectory)\WoteverCommon.dll</HintPath><Private>false</Private></Reference>
+	<Reference Include="SimHub.Logging"><HintPath>$(SimHubDirectory)\SimHub.Logging.dll</HintPath><Private>false</Private></Reference>
+	<Reference Include="log4net"><HintPath>$(SimHubDirectory)\log4net.dll</HintPath><Private>false</Private></Reference>
+	<Reference Include="System.Drawing" />
+  </ItemGroup>
+  <Target Name="CheckSimHub" BeforeTargets="ResolveReferences" Condition="!Exists('$(SimHubDirectory)\SimHub.Plugins.dll')">
+	<Error Text="SimHub was not found. Set SimHubDirectory to your SimHub installation folder." />
+  </Target>
+</Project>

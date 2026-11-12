@@ -566,6 +566,98 @@
                                             <TextBlock Grid.Row="8" Grid.Column="2" Text="{Binding HousingRenderScale, StringFormat={}{0:P0}}" VerticalAlignment="Center" TextAlignment="Right"/>
                                         </Grid>
                                     </GroupBox>
+                                    <GroupBox Header="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Leds.Group]}" Padding="6" Margin="0,6,0,0"
+                                              Visibility="{Binding HousingEnabled, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <StackPanel>
+                                            <CheckBox Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Leds.Enabled]}" IsChecked="{Binding HousingLedsEnabled}"/>
+                                            <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Leds.Help]}" TextWrapping="Wrap" Margin="0,4,0,8"/>
+                                            <Button Content="{Binding Source={x:Static local:Localization.Instance}, Path=[SimHubBridge.Setup]}" Click="SimHubBridgeSetupButton_Click" HorizontalAlignment="Left" Margin="0,0,0,8"/>
+                                            <StackPanel IsEnabled="{Binding HousingLedsEnabled}">
+                                                <GroupBox Padding="6" Margin="0,0,0,4">
+                                                    <GroupBox.Header>
+                                                        <CheckBox Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Leds.Top]}" IsChecked="{Binding HousingLedTopEnabled}"/>
+                                                    </GroupBox.Header>
+                                                    <StackPanel IsEnabled="{Binding HousingLedTopEnabled}">
+                                                        <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Leds.Count]}"/>
+                                                        <DockPanel>
+                                                            <TextBlock DockPanel.Dock="Right" Text="{Binding HousingLedCount}" Width="40" TextAlignment="Right"/>
+                                                            <Slider Value="{Binding HousingLedCount}" Minimum="1" Maximum="64" TickFrequency="1" IsSnapToTickEnabled="True"/>
+                                                        </DockPanel>
+                                                        <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Leds.Start]}"/>
+                                                        <DockPanel>
+                                                            <TextBlock DockPanel.Dock="Right" Text="{Binding HousingLedStart}" Width="40" TextAlignment="Right"/>
+                                                            <Slider Value="{Binding HousingLedStart}" Minimum="1" Maximum="256" TickFrequency="1" IsSnapToTickEnabled="True"/>
+                                                        </DockPanel>
+                                                        <CheckBox Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Leds.Reverse]}" IsChecked="{Binding HousingLedReverse}" Margin="0,4,0,0"/>
+                                                    </StackPanel>
+                                                </GroupBox>
+                                                <GroupBox Padding="6" Margin="0,0,0,4">
+                                                    <GroupBox.Header>
+                                                        <CheckBox Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Leds.Bottom]}" IsChecked="{Binding HousingLedBottomEnabled}"/>
+                                                    </GroupBox.Header>
+                                                    <StackPanel IsEnabled="{Binding HousingLedBottomEnabled}">
+                                                        <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Leds.Count]}"/>
+                                                        <DockPanel>
+                                                            <TextBlock DockPanel.Dock="Right" Text="{Binding HousingLedBottomCount}" Width="40" TextAlignment="Right"/>
+                                                            <Slider Value="{Binding HousingLedBottomCount}" Minimum="1" Maximum="64" TickFrequency="1" IsSnapToTickEnabled="True"/>
+                                                        </DockPanel>
+                                                        <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Leds.Start]}"/>
+                                                        <DockPanel>
+                                                            <TextBlock DockPanel.Dock="Right" Text="{Binding HousingLedBottomStart}" Width="40" TextAlignment="Right"/>
+                                                            <Slider Value="{Binding HousingLedBottomStart}" Minimum="1" Maximum="256" TickFrequency="1" IsSnapToTickEnabled="True"/>
+                                                        </DockPanel>
+                                                        <CheckBox Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Leds.Reverse]}" IsChecked="{Binding HousingLedBottomReverse}" Margin="0,4,0,0"/>
+                                                    </StackPanel>
+                                                </GroupBox>
+                                                <GroupBox Padding="6" Margin="0,0,0,4">
+                                                    <GroupBox.Header>
+                                                        <CheckBox Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Leds.Left]}" IsChecked="{Binding HousingLedLeftEnabled}"/>
+                                                    </GroupBox.Header>
+                                                    <StackPanel IsEnabled="{Binding HousingLedLeftEnabled}">
+                                                        <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Leds.Count]}"/>
+                                                        <DockPanel>
+                                                            <TextBlock DockPanel.Dock="Right" Text="{Binding HousingLedLeftCount}" Width="40" TextAlignment="Right"/>
+                                                            <Slider Value="{Binding HousingLedLeftCount}" Minimum="1" Maximum="64" TickFrequency="1" IsSnapToTickEnabled="True"/>
+                                                        </DockPanel>
+                                                        <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Leds.Start]}"/>
+                                                        <DockPanel>
+                                                            <TextBlock DockPanel.Dock="Right" Text="{Binding HousingLedLeftStart}" Width="40" TextAlignment="Right"/>
+                                                            <Slider Value="{Binding HousingLedLeftStart}" Minimum="1" Maximum="256" TickFrequency="1" IsSnapToTickEnabled="True"/>
+                                                        </DockPanel>
+                                                        <CheckBox Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Leds.Reverse]}" IsChecked="{Binding HousingLedLeftReverse}" Margin="0,4,0,0"/>
+                                                    </StackPanel>
+                                                </GroupBox>
+                                                <GroupBox Padding="6" Margin="0,0,0,4">
+                                                    <GroupBox.Header>
+                                                        <CheckBox Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Leds.Right]}" IsChecked="{Binding HousingLedRightEnabled}"/>
+                                                    </GroupBox.Header>
+                                                    <StackPanel IsEnabled="{Binding HousingLedRightEnabled}">
+                                                        <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Leds.Count]}"/>
+                                                        <DockPanel>
+                                                            <TextBlock DockPanel.Dock="Right" Text="{Binding HousingLedRightCount}" Width="40" TextAlignment="Right"/>
+                                                            <Slider Value="{Binding HousingLedRightCount}" Minimum="1" Maximum="64" TickFrequency="1" IsSnapToTickEnabled="True"/>
+                                                        </DockPanel>
+                                                        <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Leds.Start]}"/>
+                                                        <DockPanel>
+                                                            <TextBlock DockPanel.Dock="Right" Text="{Binding HousingLedRightStart}" Width="40" TextAlignment="Right"/>
+                                                            <Slider Value="{Binding HousingLedRightStart}" Minimum="1" Maximum="256" TickFrequency="1" IsSnapToTickEnabled="True"/>
+                                                        </DockPanel>
+                                                        <CheckBox Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Leds.Reverse]}" IsChecked="{Binding HousingLedRightReverse}" Margin="0,4,0,0"/>
+                                                    </StackPanel>
+                                                </GroupBox>
+                                                <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Leds.Width]}"/>
+                                                <DockPanel>
+                                                    <TextBlock DockPanel.Dock="Right" Text="{Binding HousingLedWidth, StringFormat={}{0:P0}}" Width="40" TextAlignment="Right"/>
+                                                    <Slider Value="{Binding HousingLedWidth}" Minimum="0.1" Maximum="1"/>
+                                                </DockPanel>
+                                                <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Leds.Brightness]}"/>
+                                                <DockPanel>
+                                                    <TextBlock DockPanel.Dock="Right" Text="{Binding HousingLedBrightness, StringFormat={}{0:P0}}" Width="40" TextAlignment="Right"/>
+                                                    <Slider Value="{Binding HousingLedBrightness}" Minimum="0" Maximum="1"/>
+                                                </DockPanel>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </GroupBox>
                                 </StackPanel>
                             </StackPanel>
                                 </Expander>
@@ -623,6 +715,36 @@
                 <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="700" MaxWidth="480">
                 <StackPanel Margin="0,0,0,0">
                     <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Global.Header]}" FontWeight="Bold" Margin="0,0,0,8"/>
+                    <!-- OpenXR API layer registration -->
+                    <Border BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="4" Padding="8" Margin="0,0,0,8">
+                        <StackPanel>
+                            <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Global.Layer.Header]}" FontWeight="Bold" Margin="0,0,0,8"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock x:Name="LayerStatusText" Grid.Column="0" VerticalAlignment="Center" Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Global.Layer.CheckingStatus]}" Margin="0,0,8,0" TextWrapping="Wrap"/>
+                                <Button x:Name="RegisterLayerButton" Grid.Column="1" Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Global.Layer.Register]}" Click="RegisterLayerButton_Click" Margin="0,0,8,0"/>
+                                <Button x:Name="UnregisterLayerButton" Grid.Column="2" Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Global.Layer.Unregister]}" Click="UnregisterLayerButton_Click"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+                    <Border BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="4" Padding="8" Margin="0,0,0,8">
+                        <StackPanel>
+                            <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[SimHubBridge.Header]}" FontWeight="Bold" Margin="0,0,0,6"/>
+                            <TextBlock x:Name="SimHubDirectoryText" TextWrapping="Wrap" Margin="0,0,0,4"/>
+                            <TextBlock x:Name="SimHubBridgeInstallStatusText" TextWrapping="Wrap" Margin="0,0,0,4"/>
+                            <TextBlock x:Name="SimHubBridgeConnectionStatusText" TextWrapping="Wrap" Margin="0,0,0,6"/>
+                            <WrapPanel>
+                                <Button x:Name="InstallSimHubBridgeButton" Content="{Binding Source={x:Static local:Localization.Instance}, Path=[SimHubBridge.Install]}" Click="InstallSimHubBridgeButton_Click" Margin="0,0,6,4"/>
+                                <Button Content="{Binding Source={x:Static local:Localization.Instance}, Path=[SimHubBridge.Browse]}" Click="BrowseSimHubButton_Click" Margin="0,0,6,4"/>
+                                <Button Content="{Binding Source={x:Static local:Localization.Instance}, Path=[SimHubBridge.Refresh]}" Click="RefreshSimHubBridgeButton_Click" Margin="0,0,0,4"/>
+                            </WrapPanel>
+                            <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[SimHubBridge.Instructions]}" TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
                     <!-- VR Reset button binding -->
                     <Border BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="4" Padding="8" Margin="0,0,0,8">
                         <StackPanel>
@@ -680,8 +802,8 @@
                      unlocked panel via controller buttons, without having to look at the
                      desktop UI. -->
                     <Border BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="4" Padding="8" Margin="0,0,0,8">
-                        <StackPanel>
-                            <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Global.Nudge.Header]}" FontWeight="Bold" Margin="0,0,0,8"/>
+                        <Expander Header="{Binding Source={x:Static local:Localization.Instance}, Path=[Global.Nudge.Header]}" IsExpanded="False">
+                        <StackPanel Margin="0,8,0,0">
                             <Grid Margin="0,0,0,8">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto"/>
@@ -708,25 +830,7 @@
                             </ItemsControl>
                             <TextBlock x:Name="NudgeStatusText" Margin="0,8,0,0" TextWrapping="Wrap" Text=""/>
                         </StackPanel>
-                    </Border>
-
-                    <!-- OpenXR API layer registration (required so overlays render inside
-                     the host application's own OpenXR session, e.g. iRacing, instead
-                     of a separate session) -->
-                    <Border BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="4" Padding="8">
-                        <StackPanel>
-                            <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Global.Layer.Header]}" FontWeight="Bold" Margin="0,0,0,8"/>
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <TextBlock x:Name="LayerStatusText" Grid.Column="0" VerticalAlignment="Center" Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Global.Layer.CheckingStatus]}" Margin="0,0,8,0" TextWrapping="Wrap"/>
-                                <Button x:Name="RegisterLayerButton" Grid.Column="1" Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Global.Layer.Register]}" Click="RegisterLayerButton_Click" Margin="0,0,8,0"/>
-                                <Button x:Name="UnregisterLayerButton" Grid.Column="2" Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Global.Layer.Unregister]}" Click="UnregisterLayerButton_Click"/>
-                            </Grid>
-                        </StackPanel>
+                        </Expander>
                     </Border>
 
                     <!-- General app behavior settings. -->

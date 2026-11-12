@@ -179,6 +179,55 @@ namespace Donutz_VR_HUD.Models
         private string _housingProfileName = HousingProfile.DefaultName;
         public string HousingProfileName { get => _housingProfileName; set => Set(ref _housingProfileName, string.IsNullOrWhiteSpace(value) ? HousingProfile.DefaultName : value); }
 
+        private bool _housingLedsEnabled;
+        public bool HousingLedsEnabled { get => _housingLedsEnabled; set => Set(ref _housingLedsEnabled, value); }
+
+        private int _housingLedCount = 16;
+        public int HousingLedCount { get => _housingLedCount; set => Set(ref _housingLedCount, Math.Clamp(value, 1, 64)); }
+
+        private int _housingLedStart = 1;
+        public int HousingLedStart { get => _housingLedStart; set => Set(ref _housingLedStart, Math.Clamp(value, 1, 256)); }
+
+        private float _housingLedBrightness = 0.6f;
+        public float HousingLedBrightness { get => _housingLedBrightness; set => Set(ref _housingLedBrightness, float.IsFinite(value) ? Math.Clamp(value, 0f, 1f) : 0.6f); }
+
+        private float _housingLedWidth = 0.8f;
+        public float HousingLedWidth { get => _housingLedWidth; set => Set(ref _housingLedWidth, float.IsFinite(value) ? Math.Clamp(value, 0.1f, 1f) : 0.8f); }
+
+        private bool _housingLedReverse;
+        public bool HousingLedReverse { get => _housingLedReverse; set => Set(ref _housingLedReverse, value); }
+
+        // HousingLedCount/Start/Reverse describe the top edge; the other edges are optional.
+        private bool _housingLedTopEnabled = true;
+        public bool HousingLedTopEnabled { get => _housingLedTopEnabled; set => Set(ref _housingLedTopEnabled, value); }
+
+        private bool _housingLedBottomEnabled;
+        public bool HousingLedBottomEnabled { get => _housingLedBottomEnabled; set => Set(ref _housingLedBottomEnabled, value); }
+        private int _housingLedBottomCount = 16;
+        public int HousingLedBottomCount { get => _housingLedBottomCount; set => Set(ref _housingLedBottomCount, Math.Clamp(value, 1, 64)); }
+        private int _housingLedBottomStart = 17;
+        public int HousingLedBottomStart { get => _housingLedBottomStart; set => Set(ref _housingLedBottomStart, Math.Clamp(value, 1, 256)); }
+        private bool _housingLedBottomReverse;
+        public bool HousingLedBottomReverse { get => _housingLedBottomReverse; set => Set(ref _housingLedBottomReverse, value); }
+
+        private bool _housingLedLeftEnabled;
+        public bool HousingLedLeftEnabled { get => _housingLedLeftEnabled; set => Set(ref _housingLedLeftEnabled, value); }
+        private int _housingLedLeftCount = 8;
+        public int HousingLedLeftCount { get => _housingLedLeftCount; set => Set(ref _housingLedLeftCount, Math.Clamp(value, 1, 64)); }
+        private int _housingLedLeftStart = 33;
+        public int HousingLedLeftStart { get => _housingLedLeftStart; set => Set(ref _housingLedLeftStart, Math.Clamp(value, 1, 256)); }
+        private bool _housingLedLeftReverse;
+        public bool HousingLedLeftReverse { get => _housingLedLeftReverse; set => Set(ref _housingLedLeftReverse, value); }
+
+        private bool _housingLedRightEnabled;
+        public bool HousingLedRightEnabled { get => _housingLedRightEnabled; set => Set(ref _housingLedRightEnabled, value); }
+        private int _housingLedRightCount = 8;
+        public int HousingLedRightCount { get => _housingLedRightCount; set => Set(ref _housingLedRightCount, Math.Clamp(value, 1, 64)); }
+        private int _housingLedRightStart = 41;
+        public int HousingLedRightStart { get => _housingLedRightStart; set => Set(ref _housingLedRightStart, Math.Clamp(value, 1, 256)); }
+        private bool _housingLedRightReverse;
+        public bool HousingLedRightReverse { get => _housingLedRightReverse; set => Set(ref _housingLedRightReverse, value); }
+
         private bool _visorTextBold = true;
         public bool VisorTextBold { get => _visorTextBold; set => Set(ref _visorTextBold, value); }
 

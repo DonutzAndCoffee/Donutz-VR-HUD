@@ -59,6 +59,12 @@ namespace Donutz_VR_HUD.Shared
         /// </summary>
         SetHousingProfile = 8,
 
+        /// <summary>Client -> server: per-panel RPM strip layout.</summary>
+        SetHousingLeds = 9,
+
+        /// <summary>Client -> server: uint16 color count followed by RGB bytes (up to 256 LEDs).</summary>
+        UpdateLedColors = 10,
+
         /// <summary>
         /// Server -> client: a VR controller grab ended, reporting the
         /// panel's final position/rotation so the app can update its
@@ -219,6 +225,28 @@ namespace Donutz_VR_HUD.Shared
         public float BackCornerRadiusMm;
         public byte CornerSegments;
         public byte PointCount;
+    }
+
+    /// <summary>One LED strip along a housing edge.</summary>
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    public struct HousingLedEdge
+    {
+        [MarshalAs(UnmanagedType.I1)] public bool Enabled;
+        public byte Count;
+        public ushort FirstIndex;
+        [MarshalAs(UnmanagedType.I1)] public bool Reverse;
+    }
+
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    public struct SetHousingLedsMessage
+    {
+        public Guid PanelId;
+        public HousingLedEdge Top;
+        public HousingLedEdge Bottom;
+        public HousingLedEdge Left;
+        public HousingLedEdge Right;
+        public float Brightness;
+        public float Width;
     }
 
     /// <summary>Server -> client. See <see cref="OverlayIpcMessageType.PanelTransformUpdated"/>.</summary>

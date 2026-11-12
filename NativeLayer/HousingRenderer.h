@@ -32,6 +32,7 @@ namespace HousingRenderer
 		float widthMeters;     // display (opening) size
 		float heightMeters;
 		IpcServer::HousingParams params;
+		IpcServer::HousingLeds leds{};
 		const IpcServer::HousingProfile* profile = nullptr;
 	};
 
