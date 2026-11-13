@@ -42,6 +42,12 @@ Demo Video: https://www.youtube.com/watch?v=1OoOyWGcSLQ
 
 
 
+## Panel preview
+
+Expand a non-visor panel to see its actual web dashboard, captured window, image, or animated test pattern, even while the VR overlay is stopped. The housing is shown from the front, not with the VR renderer's 3D lighting. With housing enabled, its opening and LED strips fit the visible content, excluding transparent outer margins using the same alpha threshold as the VR renderer. The cropped screen retains its physical scale relative to the bezel; disabling housing shows the entire source again. Fully transparent frames fall back to the full source dimensions. Transparency inside the content uses a checkerboard unless **Black instead of transparency** is enabled. Preview sources run only while the preview is visible and are separate from VR sources; web dashboards therefore have a separate browser session.
+
+LEDs show the real SimHub stream by default, including effects driven by SimHub test data or forced activations. Enable **Simulate RPM LEDs in preview** for an animated test without SimHub; it affects only the desktop preview, never LEDs in VR. Both modes use the panel's edge enables, channel ranges, reversal, strip width, and brightness. Vertical strips run bottom to top, horizontal strips left to right, unless reversed. Without live packets for two seconds, preview LEDs turn off just like in VR. The status below the preview reports missing data, source failures, and receiver errors.
+
 ## SimHub RPM LEDs
 
 Enable **3D housing**, then **SimHub RPM LEDs** on a panel. LEDs can be enabled on each housing edge (top defaults to 16 LEDs). Mesh rendering is used while enabled; disabling LEDs restores the selected housing render mode. Existing profiles keep LEDs disabled.
@@ -79,13 +85,20 @@ Protocol v1: ASCII `DLED`, version byte `1`, reserved byte `0`, little-endian `u
 ## Installation (prebuilt release)
 
 1. Install the [.NET 10 Desktop Runtime (x64)](https://dotnet.microsoft.com/download/dotnet/10.0) if not already present.
-2. Download `DonutzVRHUD-v1.6.2-win-x64.zip` from the [Releases](https://github.com/DonutzAndCoffee/Donutz-VR-HUD/releases) page and extract it to a permanent folder (the OpenXR layer is registered from this location).
+2. Download `DonutzVRHUD-v1.7.0-win-x64.zip` from the [Releases](https://github.com/DonutzAndCoffee/Donutz-VR-HUD/releases) page and extract it to a permanent folder (the OpenXR layer is registered from this location).
 3. Start `Donutz VR HUD.exe` and use the layer registration button in the app to register the OpenXR API layer (requires administrator rights).
 4. Start your OpenXR sim (e.g. iRacing) in VR.
 
 When upgrading, close the HUD and your VR application, extract the complete new package, and register the layer from the new location. The v1.6 app and native layer use an updated LED IPC format and must be updated together. Follow the SimHub LED setup above to install or update the bridge.
 
 ## Changelog
+
+### v1.7.0
+- Live desktop previews for web dashboards, captured windows, images and test patterns, without starting the VR overlay; helmet visors remain excluded.
+- Preview actual SimHub LED effects and test data, or enable a preview-only animated RPM simulation without SimHub.
+- Automatically fit preview housings and LED strips to visible content, ignoring transparent outer margins using the native renderer's alpha threshold.
+- Correct LED edge placement, channel direction, reversal, brightness and the two-second live-data timeout in previews.
+- Repair Windows capture interop and keep the capture context alive across frames; release preview resources when hidden.
 
 ### v1.6.2
 - Show the installed version and check GitHub for new releases, with a manual retry and download link.

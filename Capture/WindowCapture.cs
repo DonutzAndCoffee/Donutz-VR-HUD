@@ -27,7 +27,7 @@ namespace Donutz_VR_HUD.Capture
 
         // Factory interop interface used to create a GraphicsCaptureItem from an HWND.
         [ComImport]
-        [Guid("3628E81B-3CAC-4C60-BB49-3699567AABB7")]
+        [Guid("3628E81B-3CAC-4C60-B7F4-23CE0E0C3356")]
         [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
         private interface IGraphicsCaptureItemInterop
         {
@@ -78,6 +78,9 @@ namespace Donutz_VR_HUD.Capture
         // (0=QueryInterface, 1=AddRef, 2=Release, 3=CreateForWindow).
         [UnmanagedFunctionPointer(CallingConvention.StdCall)]
         private delegate int CreateForWindowDelegate(IntPtr self, IntPtr window, [In] ref Guid iid, out IntPtr result);
+
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+        private delegate int GetInterfaceDelegate(IntPtr self, [In] ref Guid iid, out IntPtr result);
 
         private const int D3D_DRIVER_TYPE_HARDWARE = 1;
         private const uint D3D11_CREATE_DEVICE_BGRA_SUPPORT = 0x20;
@@ -162,7 +165,7 @@ namespace Donutz_VR_HUD.Capture
                     var createForWindow = Marshal.GetDelegateForFunctionPointer<CreateForWindowDelegate>(
                         Marshal.ReadIntPtr(interopVtable, 3 * IntPtr.Size));
 
-                    var itemGuid = typeof(GraphicsCaptureItem).GUID;
+                    var itemGuid = new Guid("79C3F95B-31F7-4EC2-A464-632EF5D30760");
                     hr = createForWindow(interopPtr, hWnd, ref itemGuid, out var itemPtr);
                     if (hr < 0)
                     {
@@ -203,19 +206,39 @@ namespace Donutz_VR_HUD.Capture
                 return;
             }
 
-            var access = (IDirect3DDxgiInterfaceAccess)(object)frame.Surface;
-            var texGuid = IID_ID3D11Texture2D;
-            var texPtr = access.GetInterface(ref texGuid);
+            var surfacePtr = WinRT.MarshalInterface<Windows.Graphics.DirectX.Direct3D11.IDirect3DSurface>.FromManaged(frame.Surface);
+            IntPtr texPtr;
+            try
+            {
+                var accessGuid = typeof(IDirect3DDxgiInterfaceAccess).GUID;
+                Marshal.QueryInterface(surfacePtr, in accessGuid, out var accessPtr).ThrowOnError();
+                try
+                {
+                    var getInterface = Marshal.GetDelegateForFunctionPointer<GetInterfaceDelegate>(
+                        Marshal.ReadIntPtr(Marshal.ReadIntPtr(accessPtr), 3 * IntPtr.Size));
+                    var texGuid = IID_ID3D11Texture2D;
+                    getInterface(accessPtr, ref texGuid, out texPtr).ThrowOnError();
+                }
+                finally
+                {
+                    Marshal.Release(accessPtr);
+                }
+            }
+            finally
+            {
+                Marshal.Release(surfacePtr);
+            }
             try
             {
                 var width = frame.ContentSize.Width;
                 var height = frame.ContentSize.Height;
                 EnsureStagingTexture(width, height);
 
-                using var context = new ComPtr<ID3D11DeviceContext>((ID3D11DeviceContext*)_contextPtr);
+                var context = new ComPtr<ID3D11DeviceContext>((ID3D11DeviceContext*)_contextPtr);
                 context.CopyResource(
                     new ComPtr<ID3D11Resource>((ID3D11Resource*)_stagingTexturePtr),
                     new ComPtr<ID3D11Resource>((ID3D11Resource*)texPtr));
+                context.Flush();
 
                 FrameArrived?.Invoke(_sharedHandleName, width, height);
             }

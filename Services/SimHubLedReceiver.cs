@@ -14,6 +14,9 @@ namespace Donutz_VR_HUD.Services
         private readonly Action<string> _log;
         private int _disposed;
         private long _lastPacketTimestamp;
+        private byte[] _latestColors = [];
+
+        internal byte[] LatestColors => IsReceiving ? Volatile.Read(ref _latestColors) : [];
 
         public bool IsReceiving
         {
@@ -73,6 +76,7 @@ namespace Donutz_VR_HUD.Services
                     {
                         var colors = ParsePacket(received.Buffer);
                         invalidPacketReported = false;
+                        Volatile.Write(ref _latestColors, colors);
                         Interlocked.Exchange(ref _lastPacketTimestamp, System.Diagnostics.Stopwatch.GetTimestamp());
                         _onColors(colors);
                     }

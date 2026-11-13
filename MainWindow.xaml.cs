@@ -2662,6 +2662,13 @@ namespace Donutz_VR_HUD
             new Views.AboutWindow { Owner = this }.ShowDialog();
         }
 
+        internal byte[] PreviewLedColors => _ledReceiver?.LatestColors ?? [];
+        internal string PreviewLedStatus => _ledReceiverError is not null
+            ? string.Format(Localization.T("Panel.Preview.LedError"), _ledReceiverError)
+            : _ledReceiver is null || _ledReceiver.Completion.IsCompleted
+                ? Localization.T("Panel.Preview.LedStopped")
+                : Localization.T(_ledReceiver.IsReceiving ? "Panel.Preview.LiveLeds" : "Panel.Preview.NoLeds");
+
         private void StartLedReceiver()
         {
             if (_ledReceiver is not null && !_ledReceiver.Completion.IsCompleted) return;
