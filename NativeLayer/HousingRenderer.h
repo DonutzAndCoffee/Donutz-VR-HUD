@@ -11,18 +11,15 @@
 
 // Procedural 3D panel housing ("Mesh" render mode). Each housed panel gets a
 // mesh built by sweeping a rounded-rectangle outline along the panel's
-// housing profile (see IpcServer::HousingProfile). Each housing is drawn
-// per eye in the panel's own frame with an off-axis projection whose image
-// plane is the panel front plane; the result is submitted as two
-// eye-specific quad layers (left/right) with exactly the content quad's
-// pose/space, so the compositor reprojects housing and content identically.
-// The panel content itself stays a separate, sharp quad layer submitted
-// after it.
+// housing profile (see IpcServer::HousingProfile). Stable mode renders only
+// the housing into panel-space eye quads, preserving the separate dashboard.
+// Stereo 3D mode renders housing and display together per eye; the caller
+// presents that image on a head-facing quad.
 //
 // Lighting is sim-agnostic: a hemisphere ambient + environment specular
 // derived from the app's own eye image (see LightProbe). The view vector
-// uses the head centre for both eyes so highlights do not differ between
-// the eyes (no stereo shimmer).
+// uses each eye's own position, so housing reflections, fresnel and
+// specular highlights shift correctly between the two eyes.
 namespace HousingRenderer
 {
 	struct Instance
@@ -34,7 +31,18 @@ namespace HousingRenderer
 		IpcServer::HousingParams params;
 		IpcServer::HousingLeds leds{};
 		const IpcServer::HousingProfile* profile = nullptr;
+		XrPosef contentPose{};
+		float contentWidthMeters = 0.0f;
+		float contentHeightMeters = 0.0f;
+		bool opaqueContent = false;
 	};
+
+	// Snapshot while the source swapchain image is still acquired.
+	bool UpdateContent(ID3D11Device* device, ID3D11DeviceContext* context,
+		const std::string& key, ID3D11Texture2D* source);
+
+	// Called once per frame with keys from all reference spaces.
+	void PruneMeshes(const std::vector<std::string>& liveKeys);
 
 	bool RenderEye(
 		ID3D11Device* device,
@@ -48,10 +56,9 @@ namespace HousingRenderer
 		const XrVector3f& headPosition,
 		const std::vector<Instance>& instances,
 		const donutz::ProbeLighting& lighting,
-		ID3D11Texture2D* depthTarget = nullptr);
+		bool renderContent = true);
 
-	// Projection planes used for the depth written to depthTarget
-	// (D32_FLOAT, 0 = near, 1 = far), for XrCompositionLayerDepthInfoKHR.
+	// Projection planes used for rendering.
 	constexpr float kNearZ = 0.02f;
 	constexpr float kFarZ = 50.0f;
 

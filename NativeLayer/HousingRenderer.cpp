@@ -25,9 +25,11 @@ cbuffer Constants : register(b0)
 	float4 eyePos;      // xyz, same space as viewProj
 	float4 sky;         // rgb
 	float4 ground;      // rgb
-	float4 misc;        // x = encode sRGB, y = LED brightness
+	float4 misc;        // x = encode sRGB, y = LED brightness, z = opaque content
 	float4 ledColors[256];
 };
+Texture2D contentTexture : register(t0);
+SamplerState contentSampler : register(s0);
 
 struct VSIn
 {
@@ -61,6 +63,12 @@ PSIn VSMain(VSIn input)
 float3 Hemisphere(float y)
 {
 	return lerp(ground.rgb, sky.rgb, saturate(y * 0.5 + 0.5));
+}
+
+float3 EncodeSrgb(float3 color)
+{
+	color = saturate(color);
+	return lerp(1.055 * pow(color, 1.0 / 2.4) - 0.055, 12.92 * color, color <= 0.0031308);
 }
 
 float4 PSMain(PSIn input) : SV_TARGET
@@ -102,9 +110,21 @@ float4 PSMain(PSIn input) : SV_TARGET
 
 	if (misc.x > 0.5)
 	{
-		color = pow(saturate(color), 1.0 / 2.2);
+		color = EncodeSrgb(color);
 	}
 	return float4(color, 1.0);
+}
+
+float4 PSContent(PSIn input) : SV_TARGET
+{
+	if (dot(input.normal, eyePos.xyz - input.world) <= 0) discard;
+	float4 pixel = contentTexture.Sample(contentSampler, input.material);
+	float alpha = misc.z > 0.5 ? 1.0 : pixel.a;
+	if (alpha < 0.001) discard;
+	float3 straight = saturate(pixel.rgb / alpha);
+	float3 color = lerp(pow((straight + 0.055) / 1.055, 2.4), straight / 12.92, straight <= 0.04045);
+	if (misc.x > 0.5) color = EncodeSrgb(color);
+	return float4(color * alpha, alpha);
 }
 )";
 
@@ -130,9 +150,18 @@ float4 PSMain(PSIn input) : SV_TARGET
 	struct MeshCache
 	{
 		ComPtr<ID3D11Buffer> vb;
+		ComPtr<ID3D11Buffer> contentVb;
 		UINT vertexCount = 0;
 		std::string signature;
 	};
+
+	struct ContentCache
+	{
+		ComPtr<ID3D11Texture2D> texture;
+		ComPtr<ID3D11ShaderResourceView> srv;
+		bool mips = false;
+	};
+	std::unordered_map<std::string, ContentCache> g_contents;
 
 	std::mutex g_mutex;
 	ID3D11Device* g_device = nullptr;
@@ -140,18 +169,22 @@ float4 PSMain(PSIn input) : SV_TARGET
 	ComPtr<ID3DDeviceContextState> g_state;
 	ComPtr<ID3D11VertexShader> g_vs;
 	ComPtr<ID3D11PixelShader> g_ps;
+	ComPtr<ID3D11PixelShader> g_contentPs;
+	ComPtr<ID3D11SamplerState> g_contentSampler;
 	ComPtr<ID3D11InputLayout> g_layout;
 	ComPtr<ID3D11Buffer> g_cb;
 	ComPtr<ID3D11RasterizerState> g_raster;
 	ComPtr<ID3D11DepthStencilState> g_depthState;
 	ComPtr<ID3D11BlendState> g_blend;
+	// Scratch targets shared by all images; the top-left width x height is used.
+	ComPtr<ID3D11Texture2D> g_color;
+	ComPtr<ID3D11RenderTargetView> g_colorRtv;
+	ComPtr<ID3D11Texture2D> g_resolved; // only with MSAA
 	ComPtr<ID3D11Texture2D> g_depth;
 	ComPtr<ID3D11DepthStencilView> g_dsv;
-	UINT g_depthW = 0;
-	UINT g_depthH = 0;
-	ComPtr<ID3D11Texture2D> g_msaaColor;
-	ComPtr<ID3D11RenderTargetView> g_msaaRtv;
-	DXGI_FORMAT g_msaaFormat = DXGI_FORMAT_UNKNOWN;
+	UINT g_targetW = 0;
+	UINT g_targetH = 0;
+	DXGI_FORMAT g_targetFormat = DXGI_FORMAT_UNKNOWN;
 	UINT g_sampleCount = 1;
 	std::unordered_map<std::string, MeshCache> g_meshes;
 
@@ -361,6 +394,7 @@ float4 PSMain(PSIn input) : SV_TARGET
 	{
 		const auto& p = inst.params;
 		std::string s = std::to_string(inst.widthMeters) + "|" + std::to_string(inst.heightMeters) + "|" +
+			std::to_string(inst.contentWidthMeters) + "|" + std::to_string(inst.contentHeightMeters) + "|" +
 			std::to_string(p.bezelWidthMm) + "|" + std::to_string(p.depthMm) + "|" + std::to_string(p.displayRecessMm) + "|" + std::to_string(p.cornerRadiusMm) + "|" +
 			std::to_string(p.colorR) + "|" + std::to_string(p.colorG) + "|" + std::to_string(p.colorB) + "|" +
 			std::to_string(p.roughness) + "|" + std::to_string(p.metallic) + "|led" + std::to_string(inst.leds.width);
@@ -404,6 +438,24 @@ float4 PSMain(PSIn input) : SV_TARGET
 			return nullptr;
 		}
 		entry.vertexCount = static_cast<UINT>(vertices.size());
+		const float w = inst.contentWidthMeters * 0.5f;
+		const float h = inst.contentHeightMeters * 0.5f;
+		const Vertex screen[] = {
+			{ { -w, h, 0 }, { 0, 0, 1 }, {}, { 0, 0 } },
+			{ { -w, -h, 0 }, { 0, 0, 1 }, {}, { 0, 1 } },
+			{ { w, -h, 0 }, { 0, 0, 1 }, {}, { 1, 1 } },
+			{ { -w, h, 0 }, { 0, 0, 1 }, {}, { 0, 0 } },
+			{ { w, -h, 0 }, { 0, 0, 1 }, {}, { 1, 1 } },
+			{ { w, h, 0 }, { 0, 0, 1 }, {}, { 1, 0 } }
+		};
+		desc.ByteWidth = sizeof(screen);
+		data.pSysMem = screen;
+		if (FAILED(device->CreateBuffer(&desc, &data, &entry.contentVb)))
+		{
+			Logging::Log("HousingRenderer: creating display vertex buffer failed.");
+			g_meshes.erase(inst.key);
+			return nullptr;
+		}
 		entry.signature = signature;
 		Logging::Log("HousingRenderer: mesh rebuilt (triangles=" + std::to_string(vertices.size() / 3) + ").");
 		return &entry;
@@ -475,23 +527,32 @@ float4 PSMain(PSIn input) : SV_TARGET
 		return code;
 	}
 
+	void ReleaseTargetsLocked()
+	{
+		g_dsv.Reset();
+		g_depth.Reset();
+		g_resolved.Reset();
+		g_colorRtv.Reset();
+		g_color.Reset();
+		g_targetW = g_targetH = 0;
+		g_targetFormat = DXGI_FORMAT_UNKNOWN;
+		g_sampleCount = 1;
+	}
+
 	void ReleaseLocked()
 	{
 		g_vs.Reset();
 		g_ps.Reset();
+		g_contentPs.Reset();
+		g_contentSampler.Reset();
+		g_contents.clear();
 		g_layout.Reset();
 		g_cb.Reset();
 		g_raster.Reset();
 		g_depthState.Reset();
 		g_blend.Reset();
 		g_state.Reset();
-		g_dsv.Reset();
-		g_depth.Reset();
-		g_depthW = g_depthH = 0;
-		g_msaaRtv.Reset();
-		g_msaaColor.Reset();
-		g_msaaFormat = DXGI_FORMAT_UNKNOWN;
-		g_sampleCount = 1;
+		ReleaseTargetsLocked();
 		g_meshes.clear();
 		g_device = nullptr;
 		g_initFailed = false;
@@ -499,7 +560,8 @@ float4 PSMain(PSIn input) : SV_TARGET
 
 	bool EnsureInitializedLocked(ID3D11Device* device)
 	{
-		if (g_device == device && g_vs && g_ps && g_layout && g_cb && g_state)
+		if (g_device == device && !g_initFailed && g_vs && g_ps && g_contentPs &&
+			g_contentSampler && g_layout && g_cb && g_state)
 		{
 			return true;
 		}
@@ -529,13 +591,15 @@ float4 PSMain(PSIn input) : SV_TARGET
 
 		auto vsCode = Compile("VSMain", "vs_5_0");
 		auto psCode = Compile("PSMain", "ps_5_0");
-		if (!vsCode || !psCode)
+		auto contentCode = Compile("PSContent", "ps_5_0");
+		if (!vsCode || !psCode || !contentCode)
 		{
 			return false;
 		}
 
 		if (FAILED(device->CreateVertexShader(vsCode->GetBufferPointer(), vsCode->GetBufferSize(), nullptr, &g_vs)) ||
-			FAILED(device->CreatePixelShader(psCode->GetBufferPointer(), psCode->GetBufferSize(), nullptr, &g_ps)))
+			FAILED(device->CreatePixelShader(psCode->GetBufferPointer(), psCode->GetBufferSize(), nullptr, &g_ps)) ||
+			FAILED(device->CreatePixelShader(contentCode->GetBufferPointer(), contentCode->GetBufferSize(), nullptr, &g_contentPs)))
 		{
 			Logging::Log("HousingRenderer: creating shaders failed.");
 			return false;
@@ -575,9 +639,19 @@ float4 PSMain(PSIn input) : SV_TARGET
 		ds.DepthFunc = D3D11_COMPARISON_LESS_EQUAL;
 		D3D11_BLEND_DESC bs{};
 		bs.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+		bs.RenderTarget[0].BlendEnable = TRUE;
+		bs.RenderTarget[0].SrcBlend = bs.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
+		bs.RenderTarget[0].DestBlend = bs.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
+		bs.RenderTarget[0].BlendOp = bs.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+		D3D11_SAMPLER_DESC sampler{};
+		sampler.Filter = D3D11_FILTER_ANISOTROPIC;
+		sampler.MaxAnisotropy = 8;
+		sampler.AddressU = sampler.AddressV = sampler.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+		sampler.MaxLOD = D3D11_FLOAT32_MAX;
 		if (FAILED(device->CreateRasterizerState(&rs, &g_raster)) ||
 			FAILED(device->CreateDepthStencilState(&ds, &g_depthState)) ||
-			FAILED(device->CreateBlendState(&bs, &g_blend)))
+			FAILED(device->CreateBlendState(&bs, &g_blend)) ||
+			FAILED(device->CreateSamplerState(&sampler, &g_contentSampler)))
 		{
 			Logging::Log("HousingRenderer: creating pipeline states failed.");
 			return false;
@@ -588,69 +662,148 @@ float4 PSMain(PSIn input) : SV_TARGET
 		return true;
 	}
 
+	// Grows the shared scratch targets to the largest image rendered so far,
+	// so panels of different sizes do not recreate them every frame.
 	bool EnsureTargetsLocked(ID3D11Device* device, UINT width, UINT height, DXGI_FORMAT colorFormat)
 	{
-		if (g_dsv && g_depthW == width && g_depthH == height && g_msaaFormat == colorFormat)
+		const bool sameFormat = g_colorRtv && g_dsv && g_targetFormat == colorFormat;
+		if (sameFormat && g_targetW >= width && g_targetH >= height)
 		{
 			return true;
 		}
-		g_dsv.Reset();
-		g_depth.Reset();
-		g_msaaRtv.Reset();
-		g_msaaColor.Reset();
-		g_msaaFormat = colorFormat;
+		const UINT newW = sameFormat ? (std::max)(g_targetW, width) : width;
+		const UINT newH = sameFormat ? (std::max)(g_targetH, height) : height;
+		ReleaseTargetsLocked();
 
-		g_sampleCount = 1;
 		UINT quality = 0;
-		if (SUCCEEDED(device->CheckMultisampleQualityLevels(colorFormat, 4, &quality)) && quality > 0 &&
-			SUCCEEDED(device->CheckMultisampleQualityLevels(DXGI_FORMAT_D32_FLOAT, 4, &quality)) && quality > 0)
+		const bool msaa = SUCCEEDED(device->CheckMultisampleQualityLevels(colorFormat, 4, &quality)) && quality > 0 &&
+			SUCCEEDED(device->CheckMultisampleQualityLevels(DXGI_FORMAT_D32_FLOAT, 4, &quality)) && quality > 0;
+		for (const UINT samples : { msaa ? 4u : 1u, 1u })
 		{
-			D3D11_TEXTURE2D_DESC cd{};
-			cd.Width = width;
-			cd.Height = height;
-			cd.MipLevels = 1;
-			cd.ArraySize = 1;
-			cd.Format = colorFormat;
-			cd.SampleDesc.Count = 4;
-			cd.Usage = D3D11_USAGE_DEFAULT;
-			cd.BindFlags = D3D11_BIND_RENDER_TARGET;
-			if (SUCCEEDED(device->CreateTexture2D(&cd, nullptr, &g_msaaColor)) &&
-				SUCCEEDED(device->CreateRenderTargetView(g_msaaColor.Get(), nullptr, &g_msaaRtv)))
+			D3D11_TEXTURE2D_DESC desc{};
+			desc.Width = newW;
+			desc.Height = newH;
+			desc.MipLevels = 1;
+			desc.ArraySize = 1;
+			desc.Format = colorFormat;
+			desc.SampleDesc.Count = samples;
+			desc.Usage = D3D11_USAGE_DEFAULT;
+			desc.BindFlags = D3D11_BIND_RENDER_TARGET;
+			bool ok = SUCCEEDED(device->CreateTexture2D(&desc, nullptr, &g_color)) &&
+				SUCCEEDED(device->CreateRenderTargetView(g_color.Get(), nullptr, &g_colorRtv));
+			if (ok && samples > 1)
 			{
-				g_sampleCount = 4;
+				desc.SampleDesc.Count = 1;
+				desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+				ok = SUCCEEDED(device->CreateTexture2D(&desc, nullptr, &g_resolved));
 			}
-			else
+			desc.Format = DXGI_FORMAT_D32_FLOAT;
+			desc.SampleDesc.Count = samples;
+			desc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+			ok = ok && SUCCEEDED(device->CreateTexture2D(&desc, nullptr, &g_depth)) &&
+				SUCCEEDED(device->CreateDepthStencilView(g_depth.Get(), nullptr, &g_dsv));
+			if (ok)
 			{
-				g_msaaRtv.Reset();
-				g_msaaColor.Reset();
+				g_targetW = newW;
+				g_targetH = newH;
+				g_targetFormat = colorFormat;
+				g_sampleCount = samples;
+				Logging::Log("HousingRenderer: render targets " + std::to_string(newW) + "x" + std::to_string(newH) +
+					" samples=" + std::to_string(samples) + ".");
+				return true;
+			}
+			ReleaseTargetsLocked();
+			if (samples == 1)
+			{
+				break;
 			}
 		}
-
-		D3D11_TEXTURE2D_DESC desc{};
-		desc.Width = width;
-		desc.Height = height;
-		desc.MipLevels = 1;
-		desc.ArraySize = 1;
-		desc.Format = DXGI_FORMAT_D32_FLOAT;
-		desc.SampleDesc.Count = g_sampleCount;
-		desc.Usage = D3D11_USAGE_DEFAULT;
-		desc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
-		if (FAILED(device->CreateTexture2D(&desc, nullptr, &g_depth)) ||
-			FAILED(device->CreateDepthStencilView(g_depth.Get(), nullptr, &g_dsv)))
-		{
-			Logging::Log("HousingRenderer: creating depth buffer failed.");
-			return false;
-		}
-		g_depthW = width;
-		g_depthH = height;
-		Logging::Log("HousingRenderer: render targets " + std::to_string(width) + "x" + std::to_string(height) +
-			" samples=" + std::to_string(g_sampleCount) + ".");
-		return true;
+		Logging::Log("HousingRenderer: creating render targets failed.");
+		return false;
 	}
 }
 
 namespace HousingRenderer
 {
+	bool UpdateContent(ID3D11Device* device, ID3D11DeviceContext* context,
+		const std::string& key, ID3D11Texture2D* source)
+	{
+		if (device == nullptr || context == nullptr || source == nullptr)
+		{
+			Logging::Log("HousingRenderer: cannot snapshot display without device/context/source.");
+			return false;
+		}
+		std::lock_guard<std::mutex> lock(g_mutex);
+		if (!EnsureInitializedLocked(device)) return false;
+		D3D11_TEXTURE2D_DESC desc{};
+		source->GetDesc(&desc);
+		if (desc.SampleDesc.Count != 1 || desc.ArraySize != 1 || desc.MipLevels != 1)
+		{
+			Logging::Log("HousingRenderer: unsupported display texture layout.");
+			return false;
+		}
+		// The snapshot keeps the raw (sRGB-encoded) bytes; the shader decodes them.
+		if (desc.Format == DXGI_FORMAT_B8G8R8A8_TYPELESS ||
+			desc.Format == DXGI_FORMAT_B8G8R8A8_UNORM || desc.Format == DXGI_FORMAT_B8G8R8A8_UNORM_SRGB)
+		{
+			desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+		}
+		else if (desc.Format == DXGI_FORMAT_R8G8B8A8_TYPELESS ||
+			desc.Format == DXGI_FORMAT_R8G8B8A8_UNORM || desc.Format == DXGI_FORMAT_R8G8B8A8_UNORM_SRGB)
+		{
+			desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+		}
+		else
+		{
+			Logging::Log("HousingRenderer: unsupported display texture format=" + std::to_string(desc.Format) + ".");
+			return false;
+		}
+		auto& cached = g_contents[key];
+		D3D11_TEXTURE2D_DESC previous{};
+		if (cached.texture) cached.texture->GetDesc(&previous);
+		if (!cached.srv || previous.Width != desc.Width || previous.Height != desc.Height || previous.Format != desc.Format)
+		{
+			cached = ContentCache{};
+			// Mipmaps keep fine dashboard detail from shimmering when it is
+			// minified or seen at an angle.
+			UINT support = 0;
+			cached.mips = SUCCEEDED(device->CheckFormatSupport(desc.Format, &support)) &&
+				(support & D3D11_FORMAT_SUPPORT_MIP_AUTOGEN) != 0;
+			desc.MipLevels = cached.mips ? 0 : 1;
+			desc.Usage = D3D11_USAGE_DEFAULT;
+			desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | (cached.mips ? D3D11_BIND_RENDER_TARGET : 0);
+			desc.CPUAccessFlags = 0;
+			desc.MiscFlags = cached.mips ? D3D11_RESOURCE_MISC_GENERATE_MIPS : 0;
+			if (FAILED(device->CreateTexture2D(&desc, nullptr, &cached.texture)) ||
+				FAILED(device->CreateShaderResourceView(cached.texture.Get(), nullptr, &cached.srv)))
+			{
+				Logging::Log("HousingRenderer: creating display snapshot failed.");
+				g_contents.erase(key);
+				return false;
+			}
+		}
+		context->CopySubresourceRegion(cached.texture.Get(), 0, 0, 0, 0, source, 0, nullptr);
+		if (cached.mips)
+		{
+			context->GenerateMips(cached.srv.Get());
+		}
+		return true;
+	}
+
+	void PruneMeshes(const std::vector<std::string>& liveKeys)
+	{
+		std::lock_guard<std::mutex> lock(g_mutex);
+		const std::unordered_set<std::string> live(liveKeys.begin(), liveKeys.end());
+		for (auto it = g_meshes.begin(); it != g_meshes.end();)
+		{
+			it = live.count(it->first) == 0 ? g_meshes.erase(it) : std::next(it);
+		}
+		for (auto it = g_contents.begin(); it != g_contents.end();)
+		{
+			it = live.count(it->first) == 0 ? g_contents.erase(it) : std::next(it);
+		}
+	}
+
 	bool RenderEye(
 		ID3D11Device* device,
 		ID3D11DeviceContext* context,
@@ -663,7 +816,7 @@ namespace HousingRenderer
 		const XrVector3f& headPosition,
 		const std::vector<Instance>& instances,
 		const donutz::ProbeLighting& lighting,
-		ID3D11Texture2D* /*depthTarget*/)
+		bool renderContent)
 	{
 		if (device == nullptr || context == nullptr || target == nullptr || width == 0 || height == 0)
 		{
@@ -682,32 +835,16 @@ namespace HousingRenderer
 			return false;
 		}
 
-		{
-			std::unordered_set<std::string> live;
-			for (const auto& inst : instances) live.insert(inst.key);
-			for (auto it = g_meshes.begin(); it != g_meshes.end();)
-			{
-				it = live.count(it->first) == 0 ? g_meshes.erase(it) : std::next(it);
-			}
-		}
-
 		std::vector<std::pair<MeshCache*, const Instance*>> draws;
 		for (const auto& inst : instances)
 		{
-			if (MeshCache* mesh = GetMeshLocked(device, inst))
+			MeshCache* mesh = GetMeshLocked(device, inst);
+			if (mesh == nullptr || (renderContent && g_contents.find(inst.key) == g_contents.end()))
 			{
-				draws.emplace_back(mesh, &inst);
+				Logging::Log("HousingRenderer: display or mesh unavailable for stereo scene.");
+				return false;
 			}
-		}
-
-		D3D11_RENDER_TARGET_VIEW_DESC rtvDesc{};
-		rtvDesc.Format = rtvFormat;
-		rtvDesc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
-		ComPtr<ID3D11RenderTargetView> rtv;
-		if (FAILED(device->CreateRenderTargetView(target, &rtvDesc, &rtv)))
-		{
-			Logging::Log("HousingRenderer: CreateRenderTargetView failed (format=" + std::to_string(rtvFormat) + ").");
-			return false;
+			draws.emplace_back(mesh, &inst);
 		}
 
 		Constants constants{};
@@ -727,7 +864,7 @@ namespace HousingRenderer
 		context1->SwapDeviceContextState(g_state.Get(), &previousState);
 
 		const float clear[4] = { 0, 0, 0, 0 };
-		ID3D11RenderTargetView* colorRtv = g_sampleCount > 1 ? g_msaaRtv.Get() : rtv.Get();
+		ID3D11RenderTargetView* colorRtv = g_colorRtv.Get();
 		context->ClearRenderTargetView(colorRtv, clear);
 		context->ClearDepthStencilView(g_dsv.Get(), D3D11_CLEAR_DEPTH, 1.0f, 0);
 
@@ -749,33 +886,61 @@ namespace HousingRenderer
 		context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 		context->VSSetShader(g_vs.Get(), nullptr, 0);
 		context->VSSetConstantBuffers(0, 1, cbs);
-		context->PSSetShader(g_ps.Get(), nullptr, 0);
 		context->PSSetConstantBuffers(0, 1, cbs);
+		ID3D11SamplerState* samplers[] = { g_contentSampler.Get() };
+		context->PSSetSamplers(0, 1, samplers);
 
-		for (const auto& [mesh, inst] : draws)
-		{
-			BuildWorld(inst->pose, constants.world);
-			constants.misc[1] = inst->leds.brightness;
-			D3D11_MAPPED_SUBRESOURCE mapped{};
-			if (SUCCEEDED(context->Map(g_cb.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped)))
+		const auto drawScene = [&]() {
+			for (bool content : { false, true })
 			{
-				std::memcpy(mapped.pData, &constants, sizeof(constants));
-				context->Unmap(g_cb.Get(), 0);
+				if (content && !renderContent) continue;
+				context->PSSetShader(content ? g_contentPs.Get() : g_ps.Get(), nullptr, 0);
+				// Shade both passes from the actual eye position so housing reflections,
+				// fresnel and specular highlights shift correctly between the two eyes.
+				const auto& eye = eyePose.position;
+				constants.eyePos[0] = eye.x;
+				constants.eyePos[1] = eye.y;
+				constants.eyePos[2] = eye.z;
+				for (const auto& [mesh, inst] : draws)
+				{
+					BuildWorld(content ? inst->contentPose : inst->pose, constants.world);
+					constants.misc[1] = inst->leds.brightness;
+					constants.misc[2] = inst->opaqueContent ? 1.0f : 0.0f;
+					D3D11_MAPPED_SUBRESOURCE mapped{};
+					if (FAILED(context->Map(g_cb.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped)))
+					{
+						Logging::Log("HousingRenderer: updating stereo scene constants failed.");
+						return false;
+					}
+					std::memcpy(mapped.pData, &constants, sizeof(constants));
+					context->Unmap(g_cb.Get(), 0);
+					ID3D11Buffer* vbs[] = { content ? mesh->contentVb.Get() : mesh->vb.Get() };
+					context->IASetVertexBuffers(0, 1, vbs, &stride, &offset);
+					ID3D11ShaderResourceView* srvs[] = { content ? g_contents.at(inst->key).srv.Get() : nullptr };
+					context->PSSetShaderResources(0, 1, srvs);
+					context->Draw(content ? 6 : mesh->vertexCount, 0);
+				}
 			}
-			ID3D11Buffer* vbs[] = { mesh->vb.Get() };
-			context->IASetVertexBuffers(0, 1, vbs, &stride, &offset);
-			context->Draw(mesh->vertexCount, 0);
-		}
-
-		ID3D11RenderTargetView* nullRtv[] = { nullptr };
-		context->OMSetRenderTargets(1, nullRtv, nullptr);
-		if (g_sampleCount > 1)
+			return true;
+		};
+		const bool ok = drawScene();
+		context->OMSetRenderTargets(0, nullptr, nullptr);
+		if (ok)
 		{
-			context->ResolveSubresource(target, 0, g_msaaColor.Get(), 0, rtvFormat);
+			ID3D11Texture2D* rendered = g_color.Get();
+			if (g_sampleCount > 1)
+			{
+				context->ResolveSubresource(g_resolved.Get(), 0, g_color.Get(), 0, rtvFormat);
+				rendered = g_resolved.Get();
+			}
+			const D3D11_BOX box{ 0, 0, 0, width, height, 1 };
+			context->CopySubresourceRegion(target, 0, 0, 0, 0, rendered, 0, &box);
 		}
-
+		ID3D11ShaderResourceView* nullSrv[] = { nullptr };
+		context->PSSetShaderResources(0, 1, nullSrv);
+		context->OMSetRenderTargets(0, nullptr, nullptr);
 		context1->SwapDeviceContextState(previousState.Get(), nullptr);
-		return true;
+		return ok;
 	}
 
 	void Reset()

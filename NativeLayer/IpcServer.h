@@ -154,9 +154,9 @@ namespace IpcServer
 		float metallic;
 		// Outer corner radius of the housing.
 		float cornerRadiusMm;
-		// 0 = flat quads around the panel, 1 = 3D mesh projection layer.
+		// 0 = fallback quads, 1 = stable panel-space mesh, 2 = experimental stereo scene.
 		uint8_t renderMode;
-		// Resolution scale of the mesh projection layer (0.5..1).
+		// Housing resolution scale; experimental mode also scales the dashboard (0.5..1).
 		float renderScale;
 	};
 

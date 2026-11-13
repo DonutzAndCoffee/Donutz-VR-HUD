@@ -6,8 +6,11 @@ namespace Donutz_VR_HUD.Models
         /// <summary>Flat quads around the panel.</summary>
         Quads = 0,
 
-        /// <summary>3D mesh in one projection layer.</summary>
+        /// <summary>Panel-space mesh with a separate full-resolution dashboard.</summary>
         Mesh = 1,
+
+        /// <summary>Experimental stereo scene containing housing and dashboard.</summary>
+        Experimental = 2,
     }
 
     /// <summary>One cross-section point: inset from the outer edge (mm) and depth in percent (0 = front, -100 = back).</summary>
@@ -71,7 +74,12 @@ namespace Donutz_VR_HUD.Models
 
         public static IReadOnlyList<string> AllNames { get; } = BuiltIn.Select(p => p.Name).ToArray();
 
-        public static IReadOnlyList<HousingRenderMode> RenderModes { get; } = Enum.GetValues<HousingRenderMode>();
+        public static IReadOnlyList<HousingRenderMode> RenderModes { get; } = new[]
+        {
+            HousingRenderMode.Mesh,
+            HousingRenderMode.Experimental,
+            HousingRenderMode.Quads,
+        };
 
         public static HousingProfile Find(string? name) =>
             BuiltIn.FirstOrDefault(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase)) ?? BuiltIn[0];

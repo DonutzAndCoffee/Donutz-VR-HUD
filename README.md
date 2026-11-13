@@ -26,6 +26,7 @@ The two components communicate via a local **named pipe IPC channel** (panel tra
 - **Profiles** for saving/restoring different panel layouts per game or session.
 - **SimHub** integration for telemetry data and optional per-housing LED effects on all four edges.
 - Automatic detection of the active game/process.
+- Version display and GitHub release check at startup, with a manual retry and a link to the latest release downloads. The check contacts the public GitHub API and does not install updates automatically.
 - English UI.
 - Dark mode support (WPF-UI).
 
@@ -78,13 +79,18 @@ Protocol v1: ASCII `DLED`, version byte `1`, reserved byte `0`, little-endian `u
 ## Installation (prebuilt release)
 
 1. Install the [.NET 10 Desktop Runtime (x64)](https://dotnet.microsoft.com/download/dotnet/10.0) if not already present.
-2. Download `DonutzVRHUD-v1.6.1-win-x64.zip` from the [Releases](https://github.com/DonutzAndCoffee/Donutz-VR-HUD/releases) page and extract it to a permanent folder (the OpenXR layer is registered from this location).
+2. Download `DonutzVRHUD-v1.6.2-win-x64.zip` from the [Releases](https://github.com/DonutzAndCoffee/Donutz-VR-HUD/releases) page and extract it to a permanent folder (the OpenXR layer is registered from this location).
 3. Start `Donutz VR HUD.exe` and use the layer registration button in the app to register the OpenXR API layer (requires administrator rights).
 4. Start your OpenXR sim (e.g. iRacing) in VR.
 
 When upgrading, close the HUD and your VR application, extract the complete new package, and register the layer from the new location. The v1.6 app and native layer use an updated LED IPC format and must be updated together. Follow the SimHub LED setup above to install or update the bridge.
 
 ## Changelog
+
+### v1.6.2
+- Show the installed version and check GitHub for new releases, with a manual retry and download link.
+- Add an optional experimental stereo 3D housing mode while retaining the existing mesh and quad modes. The automated D3D11 test does not replace testing with a real VR runtime.
+- Improve VR controller interaction and housing rendering, including layer-budget and fallback handling.
 
 ### v1.6.1
 - Added a per-panel display recess setting (0–20 mm, default 3 mm) for the 3D housing.

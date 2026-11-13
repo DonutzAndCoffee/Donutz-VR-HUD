@@ -171,8 +171,8 @@ namespace Donutz_VR_HUD.Models
         private float _housingCornerRadiusMm = 4f;
         public float HousingCornerRadiusMm { get => _housingCornerRadiusMm; set => Set(ref _housingCornerRadiusMm, value); }
 
-        /// <summary>How the housing is rendered (flat quads or 3D mesh).</summary>
-        private HousingRenderMode _housingRenderMode = HousingRenderMode.Quads;
+        /// <summary>Stable mesh by default; experimental stereo and fallback quads are opt-in.</summary>
+        private HousingRenderMode _housingRenderMode = HousingRenderMode.Mesh;
         public HousingRenderMode HousingRenderMode { get => _housingRenderMode; set => Set(ref _housingRenderMode, value); }
 
         /// <summary>Resolution scale of the 3D mesh housing layer (0.5..1.0).</summary>

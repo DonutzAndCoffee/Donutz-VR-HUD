@@ -90,8 +90,14 @@
             </StackPanel>
         </Border>
 
-
-
+        <DockPanel Grid.Row="3" Margin="0,0,0,8" LastChildFill="True">
+            <Button x:Name="UpdateDownloadButton" DockPanel.Dock="Right" Margin="8,0,0,0"
+                    Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Update.Download]}" Click="UpdateDownloadButton_Click"/>
+            <Button x:Name="UpdateCheckButton" DockPanel.Dock="Right" Margin="8,0,0,0"
+                    Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Update.Check]}" Click="UpdateCheckButton_Click"/>
+            <TextBlock x:Name="UpdateStatusText" VerticalAlignment="Center" TextWrapping="Wrap"
+                       Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Update.Checking]}"/>
+        </DockPanel>
 
         <!--<Border Grid.Row="3" Grid.RowSpan="3" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="2" CornerRadius="4" Margin="0,0,0,8" Background="{DynamicResource ControlFillColorDefaultBrush}" Padding="8">-->
         <Border Grid.Row="4" Grid.RowSpan="3" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="2" CornerRadius="4" Margin="0,0,0,8" Background="#3a3a32" Padding="8">
@@ -561,7 +567,30 @@
                                             <TextBlock Grid.Row="6" Grid.Column="2" Text="{Binding HousingCornerRadiusMm, StringFormat={}{0:0} mm}" VerticalAlignment="Center" TextAlignment="Right"/>
                                             <TextBlock Grid.Row="7" Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Housing.RenderMode]}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                                             <ComboBox Grid.Row="7" Grid.Column="1" Margin="0,2" ItemsSource="{x:Static models:HousingProfile.RenderModes}" SelectedItem="{Binding HousingRenderMode}"
-                                                      ToolTip="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Housing.Tip.RenderMode]}"/>
+                                                      ToolTip="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Housing.Tip.RenderMode]}">
+                                                <ComboBox.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <TextBlock>
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Setter Property="Text" Value="{Binding}"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding}" Value="{x:Static models:HousingRenderMode.Mesh}">
+                                                                            <Setter Property="Text" Value="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Housing.Mode.Mesh]}"/>
+                                                                        </DataTrigger>
+                                                                        <DataTrigger Binding="{Binding}" Value="{x:Static models:HousingRenderMode.Experimental}">
+                                                                            <Setter Property="Text" Value="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Housing.Mode.Experimental]}"/>
+                                                                        </DataTrigger>
+                                                                        <DataTrigger Binding="{Binding}" Value="{x:Static models:HousingRenderMode.Quads}">
+                                                                            <Setter Property="Text" Value="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Housing.Mode.Quads]}"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                    </DataTemplate>
+                                                </ComboBox.ItemTemplate>
+                                            </ComboBox>
                                             <TextBlock Grid.Row="8" Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Housing.Profile]}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                                             <ComboBox Grid.Row="8" Grid.Column="1" Margin="0,2" ItemsSource="{x:Static models:HousingProfile.AllNames}" SelectedItem="{Binding HousingProfileName}"
                                                       ToolTip="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Housing.Tip.Profile]}"/>

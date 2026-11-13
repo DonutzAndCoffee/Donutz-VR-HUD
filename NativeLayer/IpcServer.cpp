@@ -303,6 +303,7 @@ namespace
 				IpcServer::SetEditModeActivePayload msg;
 				std::memcpy(&msg, payload.data(), sizeof(msg));
 				g_editModeActive = msg.active != 0;
+				Logging::Log(std::string("IpcServer: edit mode ") + (g_editModeActive ? "enabled." : "disabled."));
 			}
 			break;
 		default:

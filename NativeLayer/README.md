@@ -42,6 +42,59 @@ bauen:
 - `HookedFunctions.cpp/.h`: Enthält die gehookten Funktionen
   (`xrCreateSession`, `xrEndFrame`, `xrDestroySession`) mit TODO-Markierungen
   für die eigentliche Quad-Layer-Injection und D3D11-Texturübernahme.
+- `HousingRenderer.cpp/.h`: Drei auswählbare Methoden mit unveränderten
+  bisherigen Einstellungswerten:
+  - **Mesh (recommended), Wert 1, Standard:** bisheriges Panel-Space-Mesh
+    mit augenspezifischen Off-Axis-Bildern des Gehäuses. Das Dashboard bleibt
+    ein separater Quad in Originalauflösung, unabhängig vom Render-Scale.
+    Profile und LEDs bleiben erhalten. Die bekannte Begrenzung auf eine
+    flache Compositor-Bildfläche bleibt bestehen (keine echte Seitenansicht).
+  - **Stereo 3D (experimental), Wert 2:** räumlicher Renderpfad, nur nach
+    expliziter Auswahl. Gehäuse und Dashboard werden gemeinsam gerendert und
+    auf einem kopfzugewandten Quad gezeigt; das Dashboard wird dabei einmal
+    neu abgetastet und kann etwas weicher wirken als im Mesh-Modus.
+  - **Quads (fallback), Wert 0:** einfaches Ersatzgehäuse; weiterhin explizit
+    wählbar und als Rückfall bei nicht verfügbarem Mesh verwendbar.
+  Neue Panels und Einstellungen ohne Modus verwenden Mesh. Gespeicherte
+  Quads-/Mesh-Auswahlen bleiben erhalten; Wert 1 aktiviert nicht experimentell.
+  LEDs schalten nur Quads auf Mesh um und überschreiben keine experimentelle
+  Auswahl. Alle Modi lassen sich pro Panel mischen und dauerhaft speichern.
+
+  Nur im experimentellen Modus werden Gehäuse und texturiertes
+  Dashboard gemeinsam pro Auge mit gemeinsamem Tiefenpuffer gerendert.
+  Dadurch bleiben Seiten und Rückseite auch bei 90°/180° Drehung sichtbar.
+  Das Ergebnis wird nicht als Projektionslayer eingereicht, sondern pro
+  Panel als zwei augenspezifische Quads (links/rechts) auf einer gemeinsamen
+  quadratischen Fläche durch die Gehäusemitte, die dem Kopf zugewandt ist
+  (`BuildHousingBillboard`). Grund: Quads setzt der Compositor bei jedem
+  Refresh mit der aktuellen Kopfpose in allen sechs Freiheitsgraden neu;
+  einen Projektionslayer führt er ohne nutzbare Tiefe nur rotatorisch nach,
+  wodurch ein Gehäuse in Armlänge bei Kopfbewegung zitterte. Der
+  verbleibende Parallaxenfehler betrifft nur noch den Abstand der Geometrie
+  zur Quad-Fläche (wenige Zentimeter). Augenpositionen stammen aus
+  `xrLocateViews` zur Anzeigezeit des Frames im Raum des Panels (LOCAL oder
+  VIEW), nicht aus dem älteren Projektionslayer des Spiels; bei
+  VIEW-Head-Locking sind sie damit konstant. Mehrere Stereo-Gehäuse teilen
+  keinen Tiefenpuffer mehr und werden von fern nach nah zusammengesetzt.
+  Ist der Kopf zu nah am Gehäuse, bleibt das Dashboard als Quad sichtbar.
+  Panel-Texturen werden vor Freigabe ihres Swapchain-Bildes in eigene
+  Shader-Ressourcen mit Mipmaps kopiert und anisotrop gefiltert, damit
+  feine Details bei Verkleinerung oder schrägem Blick nicht flimmern. Dabei
+  sind auch typeless BGRA/RGBA-Texturen der Runtime zulässig.
+  Content-Bounds verschieben nur das Gehäuse,
+  nicht die UVs des vollständigen Dashboards. Im experimentellen Modus bestimmt der Render-Scale
+  die Auflösung von Gehäuse **und Dashboard** relativ zur Pixeldichte des
+  Dashboards (maximal 4096 Pixel pro Achse); 100 % empfiehlt sich für lesbare Anzeigen.
+  Die Bildgröße hängt nur vom Gehäuse ab, nicht von der Kopfposition.
+  Wenn ein Gehäuse nicht gerendert werden kann, bleiben die betroffenen
+  Dashboards als Quads sichtbar und der Fehler wird protokolliert.
+  Vor `xrEndFrame` wird das über `xrGetSystemProperties` ermittelte
+  `maxLayerCount` eingehalten: Spiel-Layer, Dashboard-Inhalte und Controller
+  haben Vorrang vor Visor und dekorativen Quad-Gehäusen. Ein Stereo-Gehäuse
+  belegt zwei Layer; reicht das Budget nicht, behält das entferntere Panel
+  nur sein Dashboard als Quad. Ausgelassene
+  Overlays werden protokolliert. Es gibt keinen zweiten `xrEndFrame`-Aufruf
+  nach einem Fehler, da damit derselbe Frame zweimal beendet würde.
 - `IpcServer.cpp/.h`: Named-Pipe-Server-Grundgerüst, das Panel-Transform- und
   Frame-Update-Nachrichten von der WPF-App entgegennimmt (siehe
   `Shared/OverlayIpcContract.cs` für das gemeinsame Nachrichtenformat).
@@ -58,17 +111,21 @@ bauen:
   - Da `xrAttachSessionActionSets` laut Spezifikation nur einmal pro
     Session aufgerufen werden darf, wird diese Funktion zusätzlich
     gehookt (`Hook_xrAttachSessionActionSets`), um das eigene ActionSet in
-    den Attach-Call der Host-App (z. B. iRacing) einzuschleusen. Alle
-    anderen Action-Funktionen (`xrCreateActionSet`, `xrCreateAction`,
-    `xrSuggestInteractionProfileBindings`, `xrCreateActionSpace`,
-    `xrSyncActions`, `xrGetActionState*`) werden unabhängig von der Host-App
-    aufgerufen und müssen nicht gehookt werden.
+    den Attach-Call der Host-App (z. B. iRacing) einzuschleusen. Der Layer
+    fängt auch `xrSuggestInteractionProfileBindings` ab und ergänzt seine
+    Bindings, da spätere Vorschläge der Host-App die bisherigen Bindings
+    für dasselbe Interaction Profile sonst vollständig ersetzen.
+  - Auch `xrSyncActions` wird abgefangen: Host- und Layer-ActionSets bleiben
+    gemeinsam aktiv. Ein separater Sync nur des Layers würde die Host-Sets
+    deaktivieren; ein Host-Sync ohne Layer würde die Controller deaktivieren.
   - Interaction-Profile-Bindings werden für Valve Index, HTC Vive,
     Oculus/Meta Touch, Windows-Mixed-Reality-Controller sowie
-    `khr/simple_controller` als Fallback vorgeschlagen.
-  - Grab-Erkennung erfolgt über einen einfachen Distanzcheck zwischen
-    Controller-Pose und Panel-Weltpose (kein Raycasting); während gehalten
-    wird die Panel-Transform direkt in `IpcServer`s Panel-Tabelle
+    `khr/simple_controller` als Fallback vorgeschlagen. Beim Simple-Profil
+    werden nur Posen und Select gebunden, da kein Thumbstick vorhanden ist.
+    Der Log zeigt Bearbeitungsmodus, aktive Posen, Tracking-Flags und Profile.
+  - Grab-Erkennung erfolgt über einen Strahltest von der Aim-Pose gegen die
+    Panel-Rechtecke; während gehalten wird die Panel-Transform direkt in
+    `IpcServer`s Panel-Tabelle
     aktualisiert (`IpcServer::ApplyControllerTransform`), sodass
     `Hook_xrEndFrame` die Änderung sofort ohne IPC-Rundlauf übernimmt. Erst
     beim Loslassen wird die finale Transform per neuer Server→Client-
@@ -85,10 +142,35 @@ bauen:
     "Laserpointer"-Strahl nach vorne, jeweils als zusätzliches
     `XrCompositionLayerQuad` mit einer prozedural eingefärbten 4x4-Textur
     (`ControllerInput::GetVisuals`, `HookedFunctions::EnsureVisualSwapchain`
-    /`FillSolidColorTexture`). Farbe zeigt den Zustand: Blau = getrackt,
-    kein Panel in Reichweite; Gelb = ein Panel liegt innerhalb der
-    Grab-Distanz; Grün = ein Panel wird gerade gehalten (der Strahl kürzt
+    /`FillSolidColorTexture`). Nur im Bearbeitungsmodus sichtbar. Farbe zeigt
+    den Zustand: Blau = getrackt, kein Panel getroffen; Gelb = ein Panel wird
+    anvisiert; Grün = ein Panel wird gerade gehalten (der Strahl kürzt
     sich dabei automatisch bis zum gehaltenen Panel).
+
+## Stereo-Gehäuse-Regressionstest
+
+`Tests\HousingStereoTests.cpp` nutzt den echten D3D11-WARP-Renderer mit
+Debug-Layer und einen simulierten OpenXR-Compositor. Geprüft werden
+90°/180°-Ansichten, canted Augen, Kopfbewegung, LOCAL/VIEW,
+zugeschnittener Inhalt, pixelgenaue Display-Zuordnung, unabhängige
+Strahlvergleiche der Stereo-Quads aus den aktuellen (nicht den vom Spiel
+eingereichten) Augenposen, Ausrichtung zum Kopf, Reihenfolge fern nach nah,
+Layer-Budget, Texturbesitz vor/nach Release, Fehler-Fallback,
+Swapchain-Wiederverwendung und Wiederherstellung des D3D-Zustands.
+Zusätzlich werden der stabile Mesh-Pfad mit separatem Dashboard in
+Originalauflösung (auch bei 50 % Gehäuse-Scale), Profilwechsel, gemischte
+stabile/experimentelle Panels und Moduswechsel geprüft.
+Der Test ersetzt keine Stabilitätsprüfung mit der tatsächlichen VR-Runtime.
+
+Aus einer x64 Native Tools PowerShell im Verzeichnis `NativeLayer`
+(`OPENXR_SDK_INCLUDE` zeigt auf das SDK-`include`-Verzeichnis):
+
+```powershell
+$testOut = Join-Path $env:TEMP 'DonutzHousingTests'
+New-Item -ItemType Directory -Force $testOut | Out-Null
+cl /nologo /EHsc /std:c++20 /DNOMINMAX "/I$env:OPENXR_SDK_INCLUDE" Tests\HousingStereoTests.cpp HousingRenderer.cpp "/Fo$testOut\\" "/Fe$testOut\HousingStereoTests.exe" /link d3d11.lib d3dcompiler.lib dxgi.lib
+if ($LASTEXITCODE -eq 0) { & "$testOut\HousingStereoTests.exe" }
+```
 
 ## Noch offen (nicht in diesem Schritt umgesetzt)
 

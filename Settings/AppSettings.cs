@@ -66,7 +66,7 @@ namespace Donutz_VR_HUD.Settings
         public float HousingRoughness { get; set; } = 0.6f;
         public float HousingMetallic { get; set; }
         public float HousingCornerRadiusMm { get; set; } = 4f;
-        public HousingRenderMode HousingRenderMode { get; set; } = HousingRenderMode.Quads;
+        public HousingRenderMode HousingRenderMode { get; set; } = HousingRenderMode.Mesh;
         public float HousingRenderScale { get; set; } = 1f;
         public string HousingProfileName { get; set; } = HousingProfile.DefaultName;
         public bool HousingLedsEnabled { get; set; }

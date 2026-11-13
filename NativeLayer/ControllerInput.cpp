@@ -2,9 +2,11 @@
 #include "HookedFunctions.h"
 #include "Logging.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <mutex>
+#include <unordered_map>
 
 namespace ControllerInput
 {
@@ -33,6 +35,8 @@ namespace ControllerInput
 		PFN_xrGetActionStateBoolean xrGetActionStateBoolean_ = nullptr;
 		PFN_xrGetActionStateVector2f xrGetActionStateVector2f_ = nullptr;
 		PFN_xrLocateSpace xrLocateSpace_ = nullptr;
+		PFN_xrGetCurrentInteractionProfile xrGetCurrentInteractionProfile_ = nullptr;
+		PFN_xrPathToString xrPathToString_ = nullptr;
 
 		XrActionSet g_actionSet = XR_NULL_HANDLE;
 		XrAction g_poseAction = XR_NULL_HANDLE;       // Hand-indexed subaction, grip pose (used for grabbing).
@@ -44,6 +48,10 @@ namespace ControllerInput
 
 		bool g_actionsCreated = false;
 		bool g_attached = false;
+		std::unordered_map<XrPath, std::vector<XrActionSuggestedBinding>> g_profileBindings;
+		std::vector<XrActiveActionSet> g_hostActiveActionSets;
+		std::string g_handDiagnostics[2];
+		uint32_t g_handDiagnosticFrames[2]{};
 
 		XrSession g_session = XR_NULL_HANDLE;
 		XrSpace g_localSpace = XR_NULL_HANDLE;
@@ -111,8 +119,11 @@ namespace ControllerInput
 			addBinding(g_aimPoseAction, g_rightHandPath, "/input/aim/pose");
 			addBinding(g_triggerAction, g_leftHandPath, triggerSubPath);
 			addBinding(g_triggerAction, g_rightHandPath, triggerSubPath);
-			addBinding(g_thumbstickAction, g_leftHandPath, thumbstickSubPath);
-			addBinding(g_thumbstickAction, g_rightHandPath, thumbstickSubPath);
+			if (thumbstickSubPath != nullptr)
+			{
+				addBinding(g_thumbstickAction, g_leftHandPath, thumbstickSubPath);
+				addBinding(g_thumbstickAction, g_rightHandPath, thumbstickSubPath);
+			}
 
 			XrInteractionProfileSuggestedBinding suggestedBinding{ XR_TYPE_INTERACTION_PROFILE_SUGGESTED_BINDING };
 			suggestedBinding.interactionProfile = profile;
@@ -123,6 +134,10 @@ namespace ControllerInput
 			if (XR_FAILED(result))
 			{
 				Logging::Log("ControllerInput: xrSuggestInteractionProfileBindings failed for '" + std::string(profilePath) + "', XrResult=" + std::to_string(result));
+			}
+			else
+			{
+				g_profileBindings[profile] = std::move(bindings);
 			}
 		}
 
@@ -353,53 +368,64 @@ namespace ControllerInput
 
 			XrActionStateBoolean triggerState{ XR_TYPE_ACTION_STATE_BOOLEAN };
 			getInfo.action = g_triggerAction;
-			if (xrGetActionStateBoolean_ != nullptr)
-			{
-				xrGetActionStateBoolean_(session, &getInfo, &triggerState);
-			}
+			const XrResult triggerResult = xrGetActionStateBoolean_(session, &getInfo, &triggerState);
+			if (XR_FAILED(triggerResult)) triggerState = XrActionStateBoolean{ XR_TYPE_ACTION_STATE_BOOLEAN };
 
 			XrActionStateVector2f thumbstickState{ XR_TYPE_ACTION_STATE_VECTOR2F };
 			getInfo.action = g_thumbstickAction;
-			if (xrGetActionStateVector2f_ != nullptr)
-			{
-				xrGetActionStateVector2f_(session, &getInfo, &thumbstickState);
-			}
+			const XrResult thumbstickResult = xrGetActionStateVector2f_(session, &getInfo, &thumbstickState);
+			if (XR_FAILED(thumbstickResult)) thumbstickState = XrActionStateVector2f{ XR_TYPE_ACTION_STATE_VECTOR2F };
 
+			XrActionStatePose gripState{ XR_TYPE_ACTION_STATE_POSE };
+			getInfo.action = g_poseAction;
+			const XrResult gripResult = xrGetActionStatePose_(session, &getInfo, &gripState);
 			XrSpaceLocation handLocation{ XR_TYPE_SPACE_LOCATION };
-			bool handPoseValid = false;
-			if (xrLocateSpace_ != nullptr)
-			{
-				if (XR_SUCCEEDED(xrLocateSpace_(handSpace, localSpace, time, &handLocation)))
-				{
-					constexpr XrSpaceLocationFlags kRequiredFlags =
-						XR_SPACE_LOCATION_POSITION_VALID_BIT | XR_SPACE_LOCATION_ORIENTATION_VALID_BIT;
-					handPoseValid = (handLocation.locationFlags & kRequiredFlags) == kRequiredFlags;
-				}
-			}
+			const XrResult handResult = xrLocateSpace_(handSpace, localSpace, time, &handLocation);
+			constexpr XrSpaceLocationFlags kRequiredFlags =
+				XR_SPACE_LOCATION_POSITION_VALID_BIT | XR_SPACE_LOCATION_ORIENTATION_VALID_BIT;
+			bool handPoseValid = XR_SUCCEEDED(gripResult) && gripState.isActive && XR_SUCCEEDED(handResult) &&
+				(handLocation.locationFlags & kRequiredFlags) == kRequiredFlags;
 
-			// Aim pose: points in the direction the user naturally aims the
-			// controller (unlike the grip pose, which is oriented for
-			// holding, not pointing). Used for the laser/hover distance
-			// check below; grabbing still uses the grip pose since that
-			// feels more natural once a panel is actually held.
+			// The aim pose targets panels; the grip pose keeps the grab offset.
 			XrSpace aimSpace = hand == Hand::Left ? g_leftAimSpace : g_rightAimSpace;
+			XrActionStatePose aimState{ XR_TYPE_ACTION_STATE_POSE };
+			getInfo.action = g_aimPoseAction;
+			const XrResult aimResult = xrGetActionStatePose_(session, &getInfo, &aimState);
 			XrSpaceLocation aimLocation{ XR_TYPE_SPACE_LOCATION };
-			bool aimPoseValid = false;
-			if (xrLocateSpace_ != nullptr && aimSpace != XR_NULL_HANDLE)
+			const XrResult aimLocateResult = aimSpace != XR_NULL_HANDLE
+				? xrLocateSpace_(aimSpace, localSpace, time, &aimLocation) : XR_ERROR_HANDLE_INVALID;
+			bool aimPoseValid = XR_SUCCEEDED(aimResult) && aimState.isActive && XR_SUCCEEDED(aimLocateResult) &&
+				(aimLocation.locationFlags & kRequiredFlags) == kRequiredFlags;
+			const std::string status = "gripActive=" + std::to_string(gripState.isActive) +
+				" aimActive=" + std::to_string(aimState.isActive) + " gripFlags=" + std::to_string(handLocation.locationFlags) +
+				" aimFlags=" + std::to_string(aimLocation.locationFlags) + " triggerActive=" + std::to_string(triggerState.isActive) +
+				" results=" + std::to_string(gripResult) + "," + std::to_string(handResult) + "," +
+				std::to_string(aimResult) + "," + std::to_string(aimLocateResult) + "," +
+				std::to_string(triggerResult) + "," + std::to_string(thumbstickResult);
+			if (status != g_handDiagnostics[handIndex] || (!handPoseValid && !aimPoseValid && ++g_handDiagnosticFrames[handIndex] >= 600))
 			{
-				if (XR_SUCCEEDED(xrLocateSpace_(aimSpace, localSpace, time, &aimLocation)))
+				std::string profileName = "unavailable";
+				XrInteractionProfileState profile{ XR_TYPE_INTERACTION_PROFILE_STATE };
+				if (xrGetCurrentInteractionProfile_ != nullptr && xrPathToString_ != nullptr &&
+					XR_SUCCEEDED(xrGetCurrentInteractionProfile_(session, handPath, &profile)))
 				{
-					constexpr XrSpaceLocationFlags kRequiredFlags =
-						XR_SPACE_LOCATION_POSITION_VALID_BIT | XR_SPACE_LOCATION_ORIENTATION_VALID_BIT;
-					aimPoseValid = (aimLocation.locationFlags & kRequiredFlags) == kRequiredFlags;
+					profileName = "unbound";
+					char path[XR_MAX_PATH_LENGTH]{};
+					uint32_t length = 0;
+					if (profile.interactionProfile != XR_NULL_PATH &&
+						XR_SUCCEEDED(xrPathToString_(g_instance, profile.interactionProfile, sizeof(path), &length, path)))
+					{
+						profileName = path;
+					}
 				}
+				Logging::Log(std::string("ControllerInput: ") + (handIndex == 0 ? "left " : "right ") + status + " profile=" + profileName + ".");
+				g_handDiagnostics[handIndex] = status;
+				g_handDiagnosticFrames[handIndex] = 0;
 			}
-			if (!aimPoseValid)
+			if (!aimPoseValid && handPoseValid)
 			{
-				// Fall back to the grip pose if the aim pose isn't available
-				// (e.g. khr/simple_controller doesn't expose /input/aim/pose).
 				aimLocation.pose = handLocation.pose;
-				aimPoseValid = handPoseValid;
+				aimPoseValid = true;
 			}
 
 			// Forward direction of the aim pose (-Z in OpenXR convention),
@@ -548,11 +574,10 @@ namespace ControllerInput
 
 			// --- Visualization (marker + laser) ---
 			ControllerVisual visual{};
-			visual.visible = handPoseValid;
+			visual.visible = aimPoseValid;
 
 			{
-				visual.markerPose.position = handLocation.pose.position;
-				visual.markerPose.orientation = handLocation.pose.orientation;
+				visual.markerPose = handPoseValid ? handLocation.pose : aimLocation.pose;
 
 				VisualColor color = kColorIdle;
 				float beamLength = kLaserLengthMeters;
@@ -662,6 +687,10 @@ namespace ControllerInput
 
 		g_instance = instance;
 		g_getInstanceProcAddr = nextGetInstanceProcAddr;
+		g_actionsCreated = false;
+		g_attached = false;
+		g_profileBindings.clear();
+		g_hostActiveActionSets.clear();
 
 		auto load = [&](const char* name, auto& fn)
 		{
@@ -680,8 +709,12 @@ namespace ControllerInput
 		load("xrGetActionStateBoolean", xrGetActionStateBoolean_);
 		load("xrGetActionStateVector2f", xrGetActionStateVector2f_);
 		load("xrLocateSpace", xrLocateSpace_);
+		load("xrGetCurrentInteractionProfile", xrGetCurrentInteractionProfile_);
+		load("xrPathToString", xrPathToString_);
 
-		if (xrCreateActionSet_ == nullptr || xrCreateAction_ == nullptr || xrStringToPath_ == nullptr)
+		if (xrCreateActionSet_ == nullptr || xrCreateAction_ == nullptr || xrStringToPath_ == nullptr ||
+			xrGetActionStatePose_ == nullptr || xrGetActionStateBoolean_ == nullptr ||
+			xrGetActionStateVector2f_ == nullptr || xrLocateSpace_ == nullptr || xrSyncActions_ == nullptr)
 		{
 			Logging::Log("ControllerInput: required OpenXR input functions unavailable, VR controller panel input disabled.");
 			return;
@@ -735,10 +768,52 @@ namespace ControllerInput
 		SuggestBindingsForProfile("/interaction_profiles/htc/vive_controller", "/input/grip/pose", "/input/trigger/value", "/input/trackpad");
 		SuggestBindingsForProfile("/interaction_profiles/oculus/touch_controller", "/input/grip/pose", "/input/trigger/value", "/input/thumbstick");
 		SuggestBindingsForProfile("/interaction_profiles/microsoft/motion_controller", "/input/grip/pose", "/input/trigger/value", "/input/thumbstick");
-		SuggestBindingsForProfile("/interaction_profiles/khr/simple_controller", "/input/grip/pose", "/input/select/click", "/input/select/click");
+		SuggestBindingsForProfile("/interaction_profiles/khr/simple_controller", "/input/grip/pose", "/input/select/click", nullptr);
 
 		g_actionsCreated = true;
-		Logging::Log("ControllerInput: action set and bindings created successfully.");
+		Logging::Log("ControllerInput: action set created; accepted binding profiles=" + std::to_string(g_profileBindings.size()) + ".");
+	}
+
+	XrResult OnSuggestInteractionProfileBindings(
+		PFN_xrSuggestInteractionProfileBindings next,
+		XrInstance instance,
+		const XrInteractionProfileSuggestedBinding* suggestedBindings)
+	{
+		std::lock_guard<std::mutex> lock(g_mutex);
+		if (instance != g_instance || !g_actionsCreated || suggestedBindings == nullptr ||
+			(suggestedBindings->countSuggestedBindings > 0 && suggestedBindings->suggestedBindings == nullptr))
+		{
+			return next(instance, suggestedBindings);
+		}
+
+		const auto profile = g_profileBindings.find(suggestedBindings->interactionProfile);
+		if (profile == g_profileBindings.end())
+		{
+			return next(instance, suggestedBindings);
+		}
+
+		std::vector<XrActionSuggestedBinding> merged;
+		merged.reserve(suggestedBindings->countSuggestedBindings + profile->second.size());
+		if (suggestedBindings->countSuggestedBindings > 0)
+		{
+			merged.insert(merged.end(), suggestedBindings->suggestedBindings,
+				suggestedBindings->suggestedBindings + suggestedBindings->countSuggestedBindings);
+		}
+		merged.insert(merged.end(), profile->second.begin(), profile->second.end());
+
+		XrInteractionProfileSuggestedBinding mergedInfo = *suggestedBindings;
+		mergedInfo.suggestedBindings = merged.data();
+		mergedInfo.countSuggestedBindings = static_cast<uint32_t>(merged.size());
+		const XrResult result = next(instance, &mergedInfo);
+		if (XR_FAILED(result))
+		{
+			Logging::Log("ControllerInput: merged interaction profile bindings failed, XrResult=" + std::to_string(result) + ".");
+		}
+		else
+		{
+			Logging::Log("ControllerInput: merged controller bindings into host interaction profile.");
+		}
+		return result;
 	}
 
 	XrResult OnAttachSessionActionSets(
@@ -768,6 +843,43 @@ namespace ControllerInput
 		{
 			Logging::Log("ControllerInput: merged xrAttachSessionActionSets failed, XrResult=" + std::to_string(result) + ". VR controller panel input disabled for this session.");
 		}
+		else
+		{
+			Logging::Log("ControllerInput: controller action set attached to session.");
+		}
+		return result;
+	}
+
+	XrResult OnSyncActions(PFN_xrSyncActions next, XrSession session, const XrActionsSyncInfo* syncInfo)
+	{
+		std::vector<XrActiveActionSet> activeSets;
+		{
+			std::lock_guard<std::mutex> lock(g_mutex);
+			if (session != g_session || !g_attached || syncInfo == nullptr ||
+				(syncInfo->countActiveActionSets > 0 && syncInfo->activeActionSets == nullptr))
+			{
+				return next(session, syncInfo);
+			}
+			if (syncInfo->countActiveActionSets > 0)
+			{
+				activeSets.assign(syncInfo->activeActionSets, syncInfo->activeActionSets + syncInfo->countActiveActionSets);
+			}
+		}
+		const auto hostSets = activeSets;
+		if (IpcServer::IsEditModeActive() && std::none_of(activeSets.begin(), activeSets.end(),
+			[](const XrActiveActionSet& set) { return set.actionSet == g_actionSet; }))
+		{
+			activeSets.push_back(XrActiveActionSet{ g_actionSet, XR_NULL_PATH });
+		}
+		XrActionsSyncInfo mergedInfo = *syncInfo;
+		mergedInfo.activeActionSets = activeSets.data();
+		mergedInfo.countActiveActionSets = static_cast<uint32_t>(activeSets.size());
+		const XrResult result = next(session, &mergedInfo);
+		if (XR_SUCCEEDED(result))
+		{
+			std::lock_guard<std::mutex> lock(g_mutex);
+			g_hostActiveActionSets = hostSets;
+		}
 		return result;
 	}
 
@@ -776,6 +888,10 @@ namespace ControllerInput
 		std::lock_guard<std::mutex> lock(g_mutex);
 		g_session = session;
 		g_localSpace = localSpace;
+		g_attached = false;
+		g_hostActiveActionSets.clear();
+		g_handDiagnostics[0].clear();
+		g_handDiagnostics[1].clear();
 
 		if (!g_actionsCreated || xrCreateActionSpace_ == nullptr)
 		{
@@ -816,8 +932,11 @@ namespace ControllerInput
 		g_rightAimSpace = XR_NULL_HANDLE;
 		g_session = XR_NULL_HANDLE;
 		g_attached = false;
+		g_hostActiveActionSets.clear();
 		g_grabState[0] = GrabState{};
 		g_grabState[1] = GrabState{};
+		g_visuals[0] = ControllerVisual{};
+		g_visuals[1] = ControllerVisual{};
 	}
 
 	void Update(XrSession session, XrSpace localSpace, XrTime predictedDisplayTime)
@@ -827,16 +946,24 @@ namespace ControllerInput
 		{
 			std::lock_guard<std::mutex> lock(g_mutex);
 			syncActions = xrSyncActions_;
-			attached = g_attached && g_actionsCreated;
+			attached = session == g_session && g_attached && g_actionsCreated;
 		}
 
+		static bool warnedUnavailable = false;
 		if (!attached || syncActions == nullptr)
 		{
+			if (IpcServer::IsEditModeActive() && !warnedUnavailable)
+			{
+				Logging::Log("ControllerInput: controller input unavailable in edit mode (action set attached=" + std::to_string(attached) +
+					", xrSyncActions available=" + std::to_string(syncActions != nullptr) + ").");
+				warnedUnavailable = true;
+			}
 			std::lock_guard<std::mutex> lock(g_mutex);
 			g_visuals[0] = ControllerVisual{};
 			g_visuals[1] = ControllerVisual{};
 			return;
 		}
+		warnedUnavailable = false;
 
 		// VR controllers must stay inert (no grabbing/nudging panels)
 		// unless the user has explicitly enabled Edit Mode in the GUI;
@@ -852,15 +979,35 @@ namespace ControllerInput
 			return;
 		}
 
-		XrActiveActionSet activeSet{ g_actionSet, XR_NULL_PATH };
-		XrActionsSyncInfo syncInfo{ XR_TYPE_ACTIONS_SYNC_INFO };
-		syncInfo.countActiveActionSets = 1;
-		syncInfo.activeActionSets = &activeSet;
-
-		if (XR_FAILED(syncActions(session, &syncInfo)))
+		std::vector<XrActiveActionSet> activeSets;
 		{
+			std::lock_guard<std::mutex> lock(g_mutex);
+			activeSets = g_hostActiveActionSets;
+			if (std::none_of(activeSets.begin(), activeSets.end(),
+				[](const XrActiveActionSet& set) { return set.actionSet == g_actionSet; }))
+			{
+				activeSets.push_back(XrActiveActionSet{ g_actionSet, XR_NULL_PATH });
+			}
+		}
+		XrActionsSyncInfo syncInfo{ XR_TYPE_ACTIONS_SYNC_INFO };
+		syncInfo.countActiveActionSets = static_cast<uint32_t>(activeSets.size());
+		syncInfo.activeActionSets = activeSets.data();
+
+		const XrResult syncResult = syncActions(session, &syncInfo);
+		static XrResult lastSyncResult = XR_SUCCESS;
+		if (syncResult != XR_SUCCESS)
+		{
+			if (syncResult != lastSyncResult)
+			{
+				Logging::Log("ControllerInput: xrSyncActions did not activate controller input, XrResult=" + std::to_string(syncResult) + ".");
+			}
+			lastSyncResult = syncResult;
+			std::lock_guard<std::mutex> lock(g_mutex);
+			g_visuals[0] = ControllerVisual{};
+			g_visuals[1] = ControllerVisual{};
 			return;
 		}
+		lastSyncResult = XR_SUCCESS;
 
 		g_pendingNudgeActions.clear();
 		UpdateHand(Hand::Left, session, localSpace, predictedDisplayTime);

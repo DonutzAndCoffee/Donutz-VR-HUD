@@ -74,6 +74,7 @@ namespace Donutz_VR_HUD
         private bool _wasSimRunning;
         private bool _closeToTray;
         private bool _isExiting;
+        private readonly CancellationTokenSource _updateCheckCancellation = new();
         private System.Windows.Forms.NotifyIcon? _trayIcon;
         private OverlayStatus _overlayStatus = OverlayStatus.Stopped;
 
@@ -146,7 +147,9 @@ namespace Donutz_VR_HUD
             PanelsItemsControl.ItemsSource = Panels;
             ProfilesComboBox.ItemsSource = Profiles;
 
-            Title = $"Donutz VR HUD (Build {GetBuildTimestamp():yyyy-MM-dd HH:mm:ss})";
+            var version = Assembly.GetExecutingAssembly().GetName().Version!;
+            Title = $"Donutz VR HUD v{version.ToString(3)} (Build {GetBuildTimestamp():yyyy-MM-dd HH:mm:ss})";
+            Loaded += async (_, _) => await CheckForUpdatesAsync();
 
             RefreshWindowList();
             RefreshRunningProcessNames();
@@ -2151,7 +2154,8 @@ namespace Donutz_VR_HUD
                 Roughness = Math.Clamp(panel.HousingRoughness, 0.05f, 1f),
                 Metallic = Math.Clamp(panel.HousingMetallic, 0f, 1f),
                 CornerRadiusMm = Math.Clamp(panel.HousingCornerRadiusMm, 0f, 50f),
-                RenderMode = (byte)(panel.HousingLedsEnabled ? HousingRenderMode.Mesh : panel.HousingRenderMode),
+                RenderMode = (byte)(panel.HousingLedsEnabled && panel.HousingRenderMode == HousingRenderMode.Quads
+                    ? HousingRenderMode.Mesh : panel.HousingRenderMode),
                 RenderScale = Math.Clamp(panel.HousingRenderScale, 0.5f, 1f),
             };
         }
@@ -2943,6 +2947,7 @@ namespace Donutz_VR_HUD
 
         protected override void OnClosed(EventArgs e)
         {
+            _updateCheckCancellation.Cancel();
             _nativeLogTimer.Stop();
             _ledStatusTimer.Stop();
             SaveSettings();
@@ -3008,6 +3013,56 @@ namespace Donutz_VR_HUD
             }
 
             Close();
+        }
+
+        private async void UpdateCheckButton_Click(object sender, RoutedEventArgs e)
+        {
+            await CheckForUpdatesAsync();
+        }
+
+        private async Task CheckForUpdatesAsync()
+        {
+            if (!UpdateCheckButton.IsEnabled || _updateCheckCancellation.IsCancellationRequested)
+                return;
+
+            UpdateCheckButton.IsEnabled = false;
+            UpdateStatusText.Text = Localization.T("Update.Checking");
+            try
+            {
+                var latest = await ReleaseUpdateChecker.GetLatestVersionAsync(_updateCheckCancellation.Token);
+                var currentAssemblyVersion = Assembly.GetExecutingAssembly().GetName().Version!;
+                var current = new Version(currentAssemblyVersion.Major, currentAssemblyVersion.Minor, currentAssemblyVersion.Build);
+                var comparison = current.CompareTo(latest);
+                var key = comparison < 0 ? "Update.Available" : comparison > 0 ? "Update.Newer" : "Update.Current";
+                UpdateStatusText.Text = string.Format(Localization.T(key), latest);
+            }
+            catch (OperationCanceledException) when (_updateCheckCancellation.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (Exception ex) when (ex is System.Net.Http.HttpRequestException or TaskCanceledException or System.Text.Json.JsonException or IOException)
+            {
+                OverlayIpcClient.AppendAppLogEntry($"GitHub update check failed: {ex}");
+                UpdateStatusText.Text = Localization.T("Update.Failed");
+            }
+            finally
+            {
+                if (!_updateCheckCancellation.IsCancellationRequested)
+                    UpdateCheckButton.IsEnabled = true;
+            }
+        }
+
+        private void UpdateDownloadButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(ReleaseUpdateChecker.ReleasesUrl) { UseShellExecute = true });
+            }
+            catch (Exception ex) when (ex is Win32Exception or InvalidOperationException)
+            {
+                OverlayIpcClient.AppendAppLogEntry($"Opening the releases page failed: {ex}");
+                UpdateStatusText.Text = string.Format(Localization.T("Update.OpenFailed"), ex.Message);
+            }
         }
 
         // Returns the last-write timestamp of the running executable, which

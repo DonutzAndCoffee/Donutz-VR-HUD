@@ -20,10 +20,9 @@
 // application (e.g. iRacing.exe) creates for its own driving inputs.
 // xrAttachSessionActionSets may only be called once per session, so
 // HookedFunctions.cpp hooks it to merge our action set into the app's call
-// (see ControllerInput::OnAttachSessionActionSets). All other
-// action-related calls (xrCreateActionSet, xrCreateAction,
-// xrSuggestInteractionProfileBindings, xrCreateActionSpace, xrSyncActions,
-// xrGetActionState*) are safe to call independently and are not hooked.
+// (see ControllerInput::OnAttachSessionActionSets). Host binding suggestions
+// are also intercepted so they do not replace the layer's bindings for the
+// same interaction profile.
 namespace ControllerInput
 {
 	enum class Hand
@@ -123,6 +122,12 @@ namespace ControllerInput
 	// controller feature ends up unused at runtime.
 	void OnInstanceCreated(XrInstance instance, PFN_xrGetInstanceProcAddr nextGetInstanceProcAddr);
 
+	// Keep the layer's bindings when the host replaces a profile's suggestions.
+	XrResult OnSuggestInteractionProfileBindings(
+		PFN_xrSuggestInteractionProfileBindings next,
+		XrInstance instance,
+		const XrInteractionProfileSuggestedBinding* suggestedBindings);
+
 	// Called from the hooked xrAttachSessionActionSets (see
 	// HookedFunctions.cpp) to merge our own action set into the app's
 	// attach call, since only one xrAttachSessionActionSets call is allowed
@@ -131,6 +136,9 @@ namespace ControllerInput
 		PFN_xrAttachSessionActionSets next,
 		XrSession session,
 		const XrSessionActionSetsAttachInfo* attachInfo);
+
+	// Keep host and layer action sets active in the same synchronization.
+	XrResult OnSyncActions(PFN_xrSyncActions next, XrSession session, const XrActionsSyncInfo* syncInfo);
 
 	// Creates the per-hand action spaces once the session/local space are
 	// available. Mirrors the timing of Hook_xrCreateSession's own reference

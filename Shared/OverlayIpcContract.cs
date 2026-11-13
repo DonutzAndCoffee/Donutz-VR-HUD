@@ -207,10 +207,10 @@ namespace Donutz_VR_HUD.Shared
         public float Metallic;
         public float CornerRadiusMm;
 
-        /// <summary>0 = flat quads around the panel, 1 = 3D mesh in one projection layer.</summary>
+        /// <summary>0 = fallback quads, 1 = stable panel-space mesh, 2 = experimental stereo scene.</summary>
         public byte RenderMode;
 
-        /// <summary>Resolution scale of the mesh projection layer (0.5..1.0).</summary>
+        /// <summary>Housing resolution scale; experimental mode also scales the dashboard (0.5..1.0).</summary>
         public float RenderScale;
     }
 
