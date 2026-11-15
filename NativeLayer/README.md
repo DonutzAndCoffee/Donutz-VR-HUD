@@ -42,59 +42,55 @@ bauen:
 - `HookedFunctions.cpp/.h`: Enthält die gehookten Funktionen
   (`xrCreateSession`, `xrEndFrame`, `xrDestroySession`) mit TODO-Markierungen
   für die eigentliche Quad-Layer-Injection und D3D11-Texturübernahme.
-- `HousingRenderer.cpp/.h`: Drei auswählbare Methoden mit unveränderten
-  bisherigen Einstellungswerten:
-  - **Mesh (recommended), Wert 1, Standard:** bisheriges Panel-Space-Mesh
-    mit augenspezifischen Off-Axis-Bildern des Gehäuses. Das Dashboard bleibt
-    ein separater Quad in Originalauflösung, unabhängig vom Render-Scale.
-    Profile und LEDs bleiben erhalten. Die bekannte Begrenzung auf eine
-    flache Compositor-Bildfläche bleibt bestehen (keine echte Seitenansicht).
-  - **Stereo 3D (experimental), Wert 2:** räumlicher Renderpfad, nur nach
-    expliziter Auswahl. Gehäuse und Dashboard werden gemeinsam gerendert und
-    auf einem kopfzugewandten Quad gezeigt; das Dashboard wird dabei einmal
-    neu abgetastet und kann etwas weicher wirken als im Mesh-Modus.
-  - **Quads (fallback), Wert 0:** einfaches Ersatzgehäuse; weiterhin explizit
-    wählbar und als Rückfall bei nicht verfügbarem Mesh verwendbar.
-  Neue Panels und Einstellungen ohne Modus verwenden Mesh. Gespeicherte
-  Quads-/Mesh-Auswahlen bleiben erhalten; Wert 1 aktiviert nicht experimentell.
-  LEDs schalten nur Quads auf Mesh um und überschreiben keine experimentelle
-  Auswahl. Alle Modi lassen sich pro Panel mischen und dauerhaft speichern.
+- `HousingRenderer.cpp/.h`: Zwei auswählbare Methoden; experimentelle Diagnose,
+  Legacy-Quads, die kopfzugewandten Stereo-Quads und der Projektionsmodus bleiben im
+  IPC/native code erhalten, werden aber nicht in der UI angeboten:
+  - **Stereo 3D (recommended), Wert 4, Standard:** rendert Gehäuse und Dashboard
+    pro Auge gemeinsam auf Compositor-Quads, die in der Display-Ebene liegen (erst
+    jenseits von 60° Blickwinkel wird die Ebene zum Kopf gekippt). Inhalte in der
+    Ebene, also das Dashboard, sind unabhängig von Fehlern der Augenposition
+    geometrisch exakt; nur die Gehäusetiefe bleibt eine Näherung. Im Headset
+    (iRacing, SteamVR) war das Dashboard damit deutlich weniger verzerrt als mit Wert 2;
+    die Tiefendarstellung des Gehäuses ist noch nicht einwandfrei.
+  - **Mesh, Wert 1:** bisheriges Panel-Space-Mesh als augenspezifische Bilder;
+    das Dashboard bleibt separat und scharf. Es ist eine stabile Alternative,
+    bildet das Gehäuse aber als flache Compositor-Ebene ab.
+  - **Stereo 3D (experimental), Wert 5 (nicht auswählbar):** Arbeitsstand zur Gehäusetiefe. Derzeit wie
+    Wert 4 plus Tiefenprüfung oberhalb des Gehäuses. Links: Für einen Punkt 100 mm vor
+    der Display-Ebene wird in jedes Augenbild ein 30-mm-Quadrat gezeichnet (rot = links,
+    grün = rechts), dort wo der Sehstrahl des Auges die Bildebene schneidet; ein weißes
+    10-mm-Compositor-Quad liegt an der echten 3D-Position des Punkts. Sitzt Weiß für
+    jedes Auge mittig im farbigen Quadrat, spricht das für eine Übereinstimmung der
+    Projektion an dieser Testposition. Rechts: ein zweites weißes Quad 100 mm hinter
+    der Ebene, ohne Farbmarke. Im Headset-Test (iRacing, SteamVR) war jedes Augen-Quad
+    nur für das zugehörige Auge sichtbar; zuletzt waren beide weißen Referenzen sichtbar.
+    Bei 107 % SteamVR-World-Scale war die Tiefendarstellung verzerrt; bei 100 % war sie
+    laut Nutzer korrekt. Der genaue Skalierungsmechanismus wurde nicht nachgewiesen.
+    OpenXR stellt keinen allgemein nutzbaren World-Scale-Wert zur Verfügung; eine
+    runtime-unabhängige Korrektur ist nicht implementiert. Andere Runtimes, einschließlich
+    Pimax Play, wurden hierzu nicht getestet.
+  - **Kopfzugewandte Stereo-Quads, Wert 2 (nicht auswählbar):** wie Wert 4, aber die
+    Ebene geht durch die Gehäusemitte und ist zum Kopf gedreht; das Dashboard wirkte
+    damit leicht perspektivisch verzerrt.
+  - **Projektion, Wert 3 (nicht auswählbar):** echte per-eye Projektion des 3D-Gehäuses
+    als OpenXR-Projektionslayer; das Dashboard bleibt als separates Quad in
+    Originalauflösung. Bei verfügbarer `XR_KHR_composition_layer_depth` wird pro
+    Auge D32-Tiefe mitgereicht. Im Test mit iRacing unter SteamVR saß das Gehäuse
+    sichtbar versetzt zum Dashboard und zitterte bei Kopfbewegung. Ursache ungeklärt:
+    eingereichte und Runtime-Augenposen stimmen laut Log auf unter 1 mm überein, und
+    der Wechsel der Posenquelle änderte nichts.
+  - **Legacy Quads, Wert 0:** einfacher Ersatzpfad; nicht in der UI auswählbar.
+  Neue Panels verwenden Wert 4. Gespeicherte Quads-Einstellungen werden zu Mesh,
+  gespeicherte Werte 2, 3 und 5 zu Wert 4 migriert. Die auswählbaren Modi können pro
+  Panel gemischt werden.
 
-  Nur im experimentellen Modus werden Gehäuse und texturiertes
-  Dashboard gemeinsam pro Auge mit gemeinsamem Tiefenpuffer gerendert.
-  Dadurch bleiben Seiten und Rückseite auch bei 90°/180° Drehung sichtbar.
-  Das Ergebnis wird nicht als Projektionslayer eingereicht, sondern pro
-  Panel als zwei augenspezifische Quads (links/rechts) auf einer gemeinsamen
-  quadratischen Fläche durch die Gehäusemitte, die dem Kopf zugewandt ist
-  (`BuildHousingBillboard`). Grund: Quads setzt der Compositor bei jedem
-  Refresh mit der aktuellen Kopfpose in allen sechs Freiheitsgraden neu;
-  einen Projektionslayer führt er ohne nutzbare Tiefe nur rotatorisch nach,
-  wodurch ein Gehäuse in Armlänge bei Kopfbewegung zitterte. Der
-  verbleibende Parallaxenfehler betrifft nur noch den Abstand der Geometrie
-  zur Quad-Fläche (wenige Zentimeter). Augenpositionen stammen aus
-  `xrLocateViews` zur Anzeigezeit des Frames im Raum des Panels (LOCAL oder
-  VIEW), nicht aus dem älteren Projektionslayer des Spiels; bei
-  VIEW-Head-Locking sind sie damit konstant. Mehrere Stereo-Gehäuse teilen
-  keinen Tiefenpuffer mehr und werden von fern nach nah zusammengesetzt.
-  Ist der Kopf zu nah am Gehäuse, bleibt das Dashboard als Quad sichtbar.
-  Panel-Texturen werden vor Freigabe ihres Swapchain-Bildes in eigene
-  Shader-Ressourcen mit Mipmaps kopiert und anisotrop gefiltert, damit
-  feine Details bei Verkleinerung oder schrägem Blick nicht flimmern. Dabei
-  sind auch typeless BGRA/RGBA-Texturen der Runtime zulässig.
-  Content-Bounds verschieben nur das Gehäuse,
-  nicht die UVs des vollständigen Dashboards. Im experimentellen Modus bestimmt der Render-Scale
-  die Auflösung von Gehäuse **und Dashboard** relativ zur Pixeldichte des
-  Dashboards (maximal 4096 Pixel pro Achse); 100 % empfiehlt sich für lesbare Anzeigen.
-  Die Bildgröße hängt nur vom Gehäuse ab, nicht von der Kopfposition.
-  Wenn ein Gehäuse nicht gerendert werden kann, bleiben die betroffenen
-  Dashboards als Quads sichtbar und der Fehler wird protokolliert.
-  Vor `xrEndFrame` wird das über `xrGetSystemProperties` ermittelte
-  `maxLayerCount` eingehalten: Spiel-Layer, Dashboard-Inhalte und Controller
-  haben Vorrang vor Visor und dekorativen Quad-Gehäusen. Ein Stereo-Gehäuse
-  belegt zwei Layer; reicht das Budget nicht, behält das entferntere Panel
-  nur sein Dashboard als Quad. Ausgelassene
-  Overlays werden protokolliert. Es gibt keinen zweiten `xrEndFrame`-Aufruf
-  nach einem Fehler, da damit derselbe Frame zweimal beendet würde.
+  Im Modus 3 wird die Housing-Geometrie gegen die aktuellen Augenposen
+  und FOVs der Runtime (`xrLocateViews`, wie in den Quad-Modi) gerendert, nicht gegen die
+  vom Spiel eingereichten Posen; vom Spiel stammt nur die Renderauflösung. Das Dashboard bleibt in
+  einer eigenen OpenXR-Quad-Ebene. Falls die Projektion nicht erstellt werden kann,
+  bleibt das Dashboard sichtbar und der Fehler wird protokolliert. Edit-Hilfslayer
+  (Shortcut-HUD und Auswahlrahmen) erhalten bei knappem Layerbudget Vorrang vor den
+  Housing-Projektionslayern.
 - `IpcServer.cpp/.h`: Named-Pipe-Server-Grundgerüst, das Panel-Transform- und
   Frame-Update-Nachrichten von der WPF-App entgegennimmt (siehe
   `Shared/OverlayIpcContract.cs` für das gemeinsame Nachrichtenformat).
@@ -155,11 +151,13 @@ Debug-Layer und einen simulierten OpenXR-Compositor. Geprüft werden
 zugeschnittener Inhalt, pixelgenaue Display-Zuordnung, unabhängige
 Strahlvergleiche der Stereo-Quads aus den aktuellen (nicht den vom Spiel
 eingereichten) Augenposen, Ausrichtung zum Kopf, Reihenfolge fern nach nah,
-Layer-Budget, Texturbesitz vor/nach Release, Fehler-Fallback,
-Swapchain-Wiederverwendung und Wiederherstellung des D3D-Zustands.
-Zusätzlich werden der stabile Mesh-Pfad mit separatem Dashboard in
+Layer-Budget einschließlich des Edit-Shortcut-HUDs bei knappem Layerbudget,
+Texturbesitz vor/nach Release, Fehler-Fallback, Swapchain-Wiederverwendung und
+Wiederherstellung des D3D-Zustands. Für den nicht auswählbaren Projektionsmodus prüft
+der Test außerdem die optionale OpenXR-Tiefenebene inklusive D32-Ausgabe der
+Gehäusegeometrie; ohne Extension wird weiterhin ohne Depth gerendert. Zusätzlich werden der stabile Mesh-Pfad mit separatem Dashboard in
 Originalauflösung (auch bei 50 % Gehäuse-Scale), Profilwechsel, gemischte
-stabile/experimentelle Panels und Moduswechsel geprüft.
+Mesh-/Stereo-Panels und Moduswechsel geprüft.
 Der Test ersetzt keine Stabilitätsprüfung mit der tatsächlichen VR-Runtime.
 
 Aus einer x64 Native Tools PowerShell im Verzeichnis `NativeLayer`
@@ -168,7 +166,7 @@ Aus einer x64 Native Tools PowerShell im Verzeichnis `NativeLayer`
 ```powershell
 $testOut = Join-Path $env:TEMP 'DonutzHousingTests'
 New-Item -ItemType Directory -Force $testOut | Out-Null
-cl /nologo /EHsc /std:c++20 /DNOMINMAX "/I$env:OPENXR_SDK_INCLUDE" Tests\HousingStereoTests.cpp HousingRenderer.cpp "/Fo$testOut\\" "/Fe$testOut\HousingStereoTests.exe" /link d3d11.lib d3dcompiler.lib dxgi.lib
+cl /nologo /EHsc /std:c++20 /DNOMINMAX "/I$env:OPENXR_SDK_INCLUDE" Tests\HousingStereoTests.cpp HousingRenderer.cpp "/Fo$testOut\\" "/Fe$testOut\HousingStereoTests.exe" /link d3d11.lib d3dcompiler.lib dxgi.lib windowscodecs.lib ole32.lib uuid.lib
 if ($LASTEXITCODE -eq 0) { & "$testOut\HousingStereoTests.exe" }
 ```
 

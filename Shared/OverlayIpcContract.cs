@@ -191,9 +191,10 @@ namespace Donutz_VR_HUD.Shared
     }
 
     /// <summary>Client -> server. See <see cref="OverlayIpcMessageType.SetHousingParams"/>. Colors are 0..1 sRGB.</summary>
-    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    [StructLayout(LayoutKind.Sequential, Pack = 1, CharSet = CharSet.Unicode)]
     public struct SetHousingParamsMessage
     {
+        public const int LogoPathLength = 512;
         public Guid PanelId;
         [MarshalAs(UnmanagedType.I1)] public bool Enabled;
 
@@ -206,11 +207,15 @@ namespace Donutz_VR_HUD.Shared
         public float Roughness;
         public float Metallic;
         public float CornerRadiusMm;
+        public float BezelTopMm, BezelBottomMm, BezelLeftMm, BezelRightMm;
+        public byte LogoPosition;
+        public float LogoWidthMm;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = LogoPathLength)] public string LogoPath;
 
-        /// <summary>0 = fallback quads, 1 = stable panel-space mesh, 2 = experimental stereo scene.</summary>
+        /// <summary>0 = fallback quads, 1 = stable mesh, 2 = head-facing stereo quads, 3 = true stereo projection, 4 = display-plane stereo quads (recommended), 5 = experimental (4 plus depth check marker).</summary>
         public byte RenderMode;
 
-        /// <summary>Housing resolution scale; experimental mode also scales the dashboard (0.5..1.0).</summary>
+        /// <summary>Housing resolution scale; mode 2 also scales the dashboard (0.5..1.0).</summary>
         public float RenderScale;
     }
 

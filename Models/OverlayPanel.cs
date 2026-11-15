@@ -143,9 +143,30 @@ namespace Donutz_VR_HUD.Models
         private bool _housingEnabled;
         public bool HousingEnabled { get => _housingEnabled; set => Set(ref _housingEnabled, value); }
 
-        /// <summary>Bezel width in millimeters, added outside the panel's screen area.</summary>
+        /// <summary>Legacy uniform bezel width retained for older saved profiles.</summary>
         private float _housingBezelWidthMm = 12f;
         public float HousingBezelWidthMm { get => _housingBezelWidthMm; set => Set(ref _housingBezelWidthMm, value); }
+
+        private float _housingBezelTopMm = 12f;
+        public float HousingBezelTopMm { get => _housingBezelTopMm; set => Set(ref _housingBezelTopMm, float.IsFinite(value) ? Math.Clamp(value, 0f, 100f) : 12f); }
+
+        private float _housingBezelBottomMm = 12f;
+        public float HousingBezelBottomMm { get => _housingBezelBottomMm; set => Set(ref _housingBezelBottomMm, float.IsFinite(value) ? Math.Clamp(value, 0f, 100f) : 12f); }
+
+        private float _housingBezelLeftMm = 12f;
+        public float HousingBezelLeftMm { get => _housingBezelLeftMm; set => Set(ref _housingBezelLeftMm, float.IsFinite(value) ? Math.Clamp(value, 0f, 100f) : 12f); }
+
+        private float _housingBezelRightMm = 12f;
+        public float HousingBezelRightMm { get => _housingBezelRightMm; set => Set(ref _housingBezelRightMm, float.IsFinite(value) ? Math.Clamp(value, 0f, 100f) : 12f); }
+
+        private string _housingLogoPath = string.Empty;
+        public string HousingLogoPath { get => _housingLogoPath; set => Set(ref _housingLogoPath, value ?? string.Empty); }
+
+        private HousingLogoPosition _housingLogoPosition;
+        public HousingLogoPosition HousingLogoPosition { get => _housingLogoPosition; set => Set(ref _housingLogoPosition, value); }
+
+        private float _housingLogoWidthMm = 40f;
+        public float HousingLogoWidthMm { get => _housingLogoWidthMm; set => Set(ref _housingLogoWidthMm, float.IsFinite(value) ? Math.Clamp(value, 5f, 100f) : 40f); }
 
         /// <summary>Housing depth (front to back) in millimeters.</summary>
         private float _housingDepthMm = 25f;
@@ -171,8 +192,8 @@ namespace Donutz_VR_HUD.Models
         private float _housingCornerRadiusMm = 4f;
         public float HousingCornerRadiusMm { get => _housingCornerRadiusMm; set => Set(ref _housingCornerRadiusMm, value); }
 
-        /// <summary>Stable mesh by default; experimental stereo and fallback quads are opt-in.</summary>
-        private HousingRenderMode _housingRenderMode = HousingRenderMode.Mesh;
+        /// <summary>Display-plane stereo housing is the default.</summary>
+        private HousingRenderMode _housingRenderMode = HousingRenderMode.DisplayPlaneStereo;
         public HousingRenderMode HousingRenderMode { get => _housingRenderMode; set => Set(ref _housingRenderMode, value); }
 
         /// <summary>Resolution scale of the 3D mesh housing layer (0.5..1.0).</summary>

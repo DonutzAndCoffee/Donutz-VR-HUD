@@ -60,13 +60,20 @@ namespace Donutz_VR_HUD.Settings
 
         public bool HousingEnabled { get; set; }
         public float HousingBezelWidthMm { get; set; } = 12f;
+        public float? HousingBezelTopMm { get; set; }
+        public float? HousingBezelBottomMm { get; set; }
+        public float? HousingBezelLeftMm { get; set; }
+        public float? HousingBezelRightMm { get; set; }
+        public string HousingLogoPath { get; set; } = string.Empty;
+        public HousingLogoPosition HousingLogoPosition { get; set; }
+        public float HousingLogoWidthMm { get; set; } = 40f;
         public float HousingDepthMm { get; set; } = 25f;
         public float HousingDisplayRecessMm { get; set; } = 3f;
         public string HousingColor { get; set; } = "#202022";
         public float HousingRoughness { get; set; } = 0.6f;
         public float HousingMetallic { get; set; }
         public float HousingCornerRadiusMm { get; set; } = 4f;
-        public HousingRenderMode HousingRenderMode { get; set; } = HousingRenderMode.Mesh;
+        public HousingRenderMode HousingRenderMode { get; set; } = HousingRenderMode.DisplayPlaneStereo;
         public float HousingRenderScale { get; set; } = 1f;
         public string HousingProfileName { get; set; } = HousingProfile.DefaultName;
         public bool HousingLedsEnabled { get; set; }
@@ -118,6 +125,13 @@ namespace Donutz_VR_HUD.Settings
             VisorTextItalic = panel.VisorTextItalic,
             HousingEnabled = panel.HousingEnabled,
             HousingBezelWidthMm = panel.HousingBezelWidthMm,
+            HousingBezelTopMm = panel.HousingBezelTopMm,
+            HousingBezelBottomMm = panel.HousingBezelBottomMm,
+            HousingBezelLeftMm = panel.HousingBezelLeftMm,
+            HousingBezelRightMm = panel.HousingBezelRightMm,
+            HousingLogoPath = panel.HousingLogoPath,
+            HousingLogoPosition = panel.HousingLogoPosition,
+            HousingLogoWidthMm = panel.HousingLogoWidthMm,
             HousingDepthMm = panel.HousingDepthMm,
             HousingDisplayRecessMm = panel.HousingDisplayRecessMm,
             HousingColor = panel.HousingColor,
@@ -213,13 +227,28 @@ namespace Donutz_VR_HUD.Settings
                 VisorTextItalic = VisorTextItalic,
                 HousingEnabled = HousingEnabled,
                 HousingBezelWidthMm = HousingBezelWidthMm > 0 ? HousingBezelWidthMm : 12f,
+                HousingBezelTopMm = ValidBezel(HousingBezelTopMm, HousingBezelWidthMm),
+                HousingBezelBottomMm = ValidBezel(HousingBezelBottomMm, HousingBezelWidthMm),
+                HousingBezelLeftMm = ValidBezel(HousingBezelLeftMm, HousingBezelWidthMm),
+                HousingBezelRightMm = ValidBezel(HousingBezelRightMm, HousingBezelWidthMm),
+                HousingLogoPath = HousingLogoPath ?? string.Empty,
+                HousingLogoPosition = Enum.IsDefined(HousingLogoPosition)
+                    ? HousingLogoPosition : global::Donutz_VR_HUD.Models.HousingLogoPosition.None,
+                HousingLogoWidthMm = float.IsFinite(HousingLogoWidthMm) ? Math.Clamp(HousingLogoWidthMm, 5f, 100f) : 40f,
                 HousingDepthMm = HousingDepthMm > 0 ? HousingDepthMm : 25f,
                 HousingDisplayRecessMm = HousingDisplayRecessMm,
                 HousingColor = HousingColor ?? "#202022",
                 HousingRoughness = HousingRoughness,
                 HousingMetallic = HousingMetallic,
                 HousingCornerRadiusMm = HousingCornerRadiusMm >= 0 ? HousingCornerRadiusMm : 4f,
-                HousingRenderMode = HousingRenderMode,
+                HousingRenderMode = HousingRenderMode switch
+                {
+                    global::Donutz_VR_HUD.Models.HousingRenderMode.Quads => global::Donutz_VR_HUD.Models.HousingRenderMode.Mesh,
+                    global::Donutz_VR_HUD.Models.HousingRenderMode.HeadFacingStereo => global::Donutz_VR_HUD.Models.HousingRenderMode.DisplayPlaneStereo,
+                    global::Donutz_VR_HUD.Models.HousingRenderMode.Projection => global::Donutz_VR_HUD.Models.HousingRenderMode.DisplayPlaneStereo,
+                    global::Donutz_VR_HUD.Models.HousingRenderMode.Experimental => global::Donutz_VR_HUD.Models.HousingRenderMode.DisplayPlaneStereo,
+                    _ => HousingRenderMode
+                },
                 HousingRenderScale = HousingRenderScale > 0 ? HousingRenderScale : 1f,
                 HousingProfileName = HousingProfileName ?? HousingProfile.DefaultName,
                 HousingLedsEnabled = HousingLedsEnabled,
@@ -245,6 +274,11 @@ namespace Donutz_VR_HUD.Settings
 
             return panel;
         }
+
+        private static float ValidBezel(float? value, float legacyValue) =>
+            value.HasValue && float.IsFinite(value.Value)
+                ? Math.Clamp(value.Value, 0f, 100f)
+                : Math.Clamp(legacyValue > 0 && float.IsFinite(legacyValue) ? legacyValue : 12f, 0f, 100f);
     }
 
     /// <summary>Serializable snapshot of the "VR Reset" button binding.</summary>

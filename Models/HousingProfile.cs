@@ -1,16 +1,36 @@
 namespace Donutz_VR_HUD.Models
 {
+    /// <summary>Placement of a logo decal on the front face of the housing.</summary>
+    public enum HousingLogoPosition : byte
+    {
+        None,
+        TopCenter,
+        TopLeft,
+        TopRight,
+        BottomLeft,
+        BottomRight
+    }
+
     /// <summary>How a panel housing is rendered.</summary>
     public enum HousingRenderMode : byte
     {
-        /// <summary>Flat quads around the panel.</summary>
+        /// <summary>Flat quads around the panel; retained for legacy profiles and fallback.</summary>
         Quads = 0,
 
         /// <summary>Panel-space mesh with a separate full-resolution dashboard.</summary>
         Mesh = 1,
 
-        /// <summary>Experimental stereo scene containing housing and dashboard.</summary>
-        Experimental = 2,
+        /// <summary>Per-eye housing and dashboard on head-facing quads; superseded by <see cref="DisplayPlaneStereo"/>, retained in code but not selectable.</summary>
+        HeadFacingStereo = 2,
+
+        /// <summary>True per-eye projection of the 3D housing; retained in code but not selectable (misplaced and jittery on SteamVR).</summary>
+        Projection = 3,
+
+        /// <summary>Recommended: per-eye housing and dashboard on quads lying in the display plane, so the dashboard is geometrically exact.</summary>
+        DisplayPlaneStereo = 4,
+
+        /// <summary>Retained diagnostic mode, not selectable: <see cref="DisplayPlaneStereo"/> plus a depth check marker.</summary>
+        Experimental = 5,
     }
 
     /// <summary>One cross-section point: inset from the outer edge (mm) and depth in percent (0 = front, -100 = back).</summary>
@@ -76,10 +96,11 @@ namespace Donutz_VR_HUD.Models
 
         public static IReadOnlyList<HousingRenderMode> RenderModes { get; } = new[]
         {
+            HousingRenderMode.DisplayPlaneStereo,
             HousingRenderMode.Mesh,
-            HousingRenderMode.Experimental,
-            HousingRenderMode.Quads,
         };
+
+        public static IReadOnlyList<HousingLogoPosition> LogoPositions { get; } = Enum.GetValues<HousingLogoPosition>();
 
         public static HousingProfile Find(string? name) =>
             BuiltIn.FirstOrDefault(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase)) ?? BuiltIn[0];

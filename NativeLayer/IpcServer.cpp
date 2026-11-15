@@ -221,6 +221,13 @@ namespace
 				auto& panel = g_panels[ToKey(msg.panelId)];
 				panel.panelId = msg.panelId;
 				panel.hasHousing = msg.enabled != 0;
+				msg.params.logoPath[std::size(msg.params.logoPath) - 1] = L'\0';
+				msg.params.bezelTopMm = std::clamp(msg.params.bezelTopMm, 0.0f, 100.0f);
+				msg.params.bezelBottomMm = std::clamp(msg.params.bezelBottomMm, 0.0f, 100.0f);
+				msg.params.bezelLeftMm = std::clamp(msg.params.bezelLeftMm, 0.0f, 100.0f);
+				msg.params.bezelRightMm = std::clamp(msg.params.bezelRightMm, 0.0f, 100.0f);
+				msg.params.logoWidthMm = std::clamp(msg.params.logoWidthMm, 5.0f, 100.0f);
+				if (msg.params.logoPosition > 5) msg.params.logoPosition = 0;
 				panel.housing = msg.params;
 				Logging::Log(std::string("IpcServer: housing params received, enabled=") + (panel.hasHousing ? "1" : "0"));
 			}

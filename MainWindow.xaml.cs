@@ -1953,6 +1953,25 @@ namespace Donutz_VR_HUD
             }
         }
 
+        private void BrowseHousingLogoButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not FrameworkElement { Tag: OverlayPanel panel })
+            {
+                return;
+            }
+
+            var dialog = new Microsoft.Win32.OpenFileDialog
+            {
+                Filter = "Logo images|*.png;*.jpg;*.jpeg;*.bmp;*.tif;*.tiff|All files|*.*",
+                CheckFileExists = true
+            };
+
+            if (dialog.ShowDialog(this) == true)
+            {
+                panel.HousingLogoPath = dialog.FileName;
+            }
+        }
+
         private void PickHousingColorButton_Click(object sender, RoutedEventArgs e)
         {
             if (sender is not FrameworkElement { Tag: OverlayPanel panel })
@@ -2062,6 +2081,13 @@ namespace Donutz_VR_HUD
                     break;
                 case nameof(OverlayPanel.HousingEnabled):
                 case nameof(OverlayPanel.HousingBezelWidthMm):
+                case nameof(OverlayPanel.HousingBezelTopMm):
+                case nameof(OverlayPanel.HousingBezelBottomMm):
+                case nameof(OverlayPanel.HousingBezelLeftMm):
+                case nameof(OverlayPanel.HousingBezelRightMm):
+                case nameof(OverlayPanel.HousingLogoPath):
+                case nameof(OverlayPanel.HousingLogoPosition):
+                case nameof(OverlayPanel.HousingLogoWidthMm):
                 case nameof(OverlayPanel.HousingDepthMm):
                 case nameof(OverlayPanel.HousingDisplayRecessMm):
                 case nameof(OverlayPanel.HousingColor):
@@ -2154,7 +2180,17 @@ namespace Donutz_VR_HUD
                 Roughness = Math.Clamp(panel.HousingRoughness, 0.05f, 1f),
                 Metallic = Math.Clamp(panel.HousingMetallic, 0f, 1f),
                 CornerRadiusMm = Math.Clamp(panel.HousingCornerRadiusMm, 0f, 50f),
-                RenderMode = (byte)(panel.HousingLedsEnabled && panel.HousingRenderMode == HousingRenderMode.Quads
+                BezelTopMm = panel.HousingBezelTopMm,
+                BezelBottomMm = panel.HousingBezelBottomMm,
+                BezelLeftMm = panel.HousingBezelLeftMm,
+                BezelRightMm = panel.HousingBezelRightMm,
+                LogoPosition = (byte)panel.HousingLogoPosition,
+                LogoWidthMm = panel.HousingLogoWidthMm,
+                LogoPath = panel.HousingLogoPath.Length < Shared.SetHousingParamsMessage.LogoPathLength
+                    ? panel.HousingLogoPath : panel.HousingLogoPath[..(Shared.SetHousingParamsMessage.LogoPathLength - 1)],
+                RenderMode = (byte)((panel.HousingLedsEnabled ||
+                    (panel.HousingLogoPosition != Models.HousingLogoPosition.None && !string.IsNullOrWhiteSpace(panel.HousingLogoPath))) &&
+                    panel.HousingRenderMode == HousingRenderMode.Quads
                     ? HousingRenderMode.Mesh : panel.HousingRenderMode),
                 RenderScale = Math.Clamp(panel.HousingRenderScale, 0.5f, 1f),
             };

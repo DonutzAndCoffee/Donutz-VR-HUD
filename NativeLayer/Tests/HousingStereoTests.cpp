@@ -30,6 +30,13 @@ namespace Test
 	constexpr int kSourceW = 320, kSourceH = 240;
 	bool expectScene = true;
 	bool profileFrame = false;
+	bool projectionFrame = false;
+	bool projectionDepthFrame = false;
+	bool editHudBudgetFrame = false;
+	bool markerFrame = false;
+	int failDepthCreateView = -1;
+	int depthCreates = 0;
+	bool projectionBudgetFrame = false;
 	bool stableFrame = false;
 	bool budgetFrame = false;
 	bool stereoBudgetFrame = false;
@@ -43,6 +50,7 @@ namespace Test
 	size_t rayChecks = 0;
 	size_t displayChecks = 0;
 	size_t emptyChecks = 0;
+	size_t planeChecks = 0;
 	std::vector<std::string> logs;
 
 	struct Swapchain
@@ -51,6 +59,7 @@ namespace Test
 		int state = 0;
 		int viewIndex = -1;
 		bool source = false;
+		bool depth = false;
 		DXGI_FORMAT format;
 	};
 	std::map<XrSwapchain, Swapchain> swapchains;
@@ -130,17 +139,19 @@ namespace Test
 		desc.Width = info->width;
 		desc.Height = info->height;
 		desc.MipLevels = desc.ArraySize = desc.SampleDesc.Count = 1;
+		Swapchain chain{};
+		chain.depth = (info->usageFlags & XR_SWAPCHAIN_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT) != 0;
+		if (chain.depth && depthCreates++ == failDepthCreateView) return XR_ERROR_RUNTIME_FAILURE;
 		desc.Format = info->format == DXGI_FORMAT_B8G8R8A8_UNORM_SRGB ? DXGI_FORMAT_B8G8R8A8_TYPELESS :
 			static_cast<DXGI_FORMAT>(info->format);
-		desc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
-		Swapchain chain{};
+		desc.BindFlags = chain.depth ? D3D11_BIND_DEPTH_STENCIL : D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
 		chain.format = static_cast<DXGI_FORMAT>(info->format);
 		chain.source = info->width == kSourceW && info->height == kSourceH;
-		if (!chain.source)
+		if (!chain.source && !chain.depth)
 		{
 			int colors = 0;
 			for (const auto& pair : swapchains)
-				if (!pair.second.source) ++colors;
+				if (!pair.second.source && !pair.second.depth) ++colors;
 			chain.viewIndex = colors % 2;
 		}
 		Require(SUCCEEDED(device->CreateTexture2D(&desc, nullptr, &chain.texture)), "Runtime texture creation failed");
@@ -175,7 +186,7 @@ namespace Test
 	XRAPI_ATTR XrResult XRAPI_CALL Acquire(XrSwapchain handle, const XrSwapchainImageAcquireInfo*, uint32_t* index)
 	{
 		auto& chain = swapchains.at(handle);
-		if (!chain.source && chain.viewIndex == failAcquire) return XR_ERROR_RUNTIME_FAILURE;
+		if (!chain.source && !chain.depth && chain.viewIndex == failAcquire) return XR_ERROR_RUNTIME_FAILURE;
 		Require(chain.state == 0, "Image acquired twice");
 		chain.state = 1;
 		*index = 0;
@@ -251,20 +262,22 @@ namespace Test
 		const XMMATRIX housing = HousingInSpace(panel) * ToApp(SpaceOf(panel));
 		const float w = (u1 - u0) * panel.widthMeters / 2;
 		const float h = (v1 - v0) * panel.heightMeters / 2;
-		const float ow = w + panel.housing.bezelWidthMm / 1000;
-		const float oh = h + panel.housing.bezelWidthMm / 1000;
+		const float left = w + panel.housing.bezelLeftMm / 1000;
+		const float right = w + panel.housing.bezelRightMm / 1000;
+		const float bottom = h + panel.housing.bezelBottomMm / 1000;
+		const float top = h + panel.housing.bezelTopMm / 1000;
 		const float d = -panel.housing.depthMm / 1000;
 		const float r = -panel.housing.displayRecessMm / 1000;
 		// Independent analytic rectangular shell, lip, back and display.
-		Rectangle(housing, { -ow, -oh, d }, { ow, -oh, d }, { ow, oh, d }, { -ow, oh, d });
-		Rectangle(housing, { -ow, -oh, 0 }, { -ow, oh, 0 }, { -ow, oh, d }, { -ow, -oh, d });
-		Rectangle(housing, { ow, -oh, 0 }, { ow, oh, 0 }, { ow, oh, d }, { ow, -oh, d });
-		Rectangle(housing, { -ow, -oh, 0 }, { ow, -oh, 0 }, { ow, -oh, d }, { -ow, -oh, d });
-		Rectangle(housing, { -ow, oh, 0 }, { ow, oh, 0 }, { ow, oh, d }, { -ow, oh, d });
-		Rectangle(housing, { -ow, -oh, 0 }, { -w, -oh, 0 }, { -w, oh, 0 }, { -ow, oh, 0 });
-		Rectangle(housing, { w, -oh, 0 }, { ow, -oh, 0 }, { ow, oh, 0 }, { w, oh, 0 });
-		Rectangle(housing, { -w, h, 0 }, { w, h, 0 }, { w, oh, 0 }, { -w, oh, 0 });
-		Rectangle(housing, { -w, -oh, 0 }, { w, -oh, 0 }, { w, -h, 0 }, { -w, -h, 0 });
+		Rectangle(housing, { -left, -bottom, d }, { right, -bottom, d }, { right, top, d }, { -left, top, d });
+		Rectangle(housing, { -left, -bottom, 0 }, { -left, top, 0 }, { -left, top, d }, { -left, -bottom, d });
+		Rectangle(housing, { right, -bottom, 0 }, { right, top, 0 }, { right, top, d }, { right, -bottom, d });
+		Rectangle(housing, { -left, -bottom, 0 }, { right, -bottom, 0 }, { right, -bottom, d }, { -left, -bottom, d });
+		Rectangle(housing, { -left, top, 0 }, { right, top, 0 }, { right, top, d }, { -left, top, d });
+		Rectangle(housing, { -left, -bottom, 0 }, { -w, -bottom, 0 }, { -w, h, 0 }, { -left, h, 0 });
+		Rectangle(housing, { w, -bottom, 0 }, { right, -bottom, 0 }, { right, h, 0 }, { w, h, 0 });
+		Rectangle(housing, { -w, h, 0 }, { w, h, 0 }, { w, top, 0 }, { -w, top, 0 });
+		Rectangle(housing, { -w, -bottom, 0 }, { w, -bottom, 0 }, { w, -h, 0 }, { -w, -h, 0 });
 		Rectangle(housing, { -w, -h, 0 }, { -w, h, 0 }, { -w, h, r }, { -w, -h, r });
 		Rectangle(housing, { w, -h, 0 }, { w, h, 0 }, { w, h, r }, { w, -h, r });
 		Rectangle(housing, { -w, -h, 0 }, { w, -h, 0 }, { w, -h, r }, { -w, -h, r });
@@ -292,6 +305,26 @@ namespace Test
 		return result;
 	}
 
+	std::vector<float> ReadDepth(ID3D11Texture2D* texture)
+	{
+		D3D11_TEXTURE2D_DESC desc{};
+		texture->GetDesc(&desc);
+		const UINT width = desc.Width, height = desc.Height;
+		desc.BindFlags = desc.MiscFlags = 0;
+		desc.Usage = D3D11_USAGE_STAGING;
+		desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+		ComPtr<ID3D11Texture2D> staging;
+		Require(SUCCEEDED(device->CreateTexture2D(&desc, nullptr, &staging)), "Depth readback texture creation failed");
+		context->CopyResource(staging.Get(), texture);
+		D3D11_MAPPED_SUBRESOURCE mapped{};
+		Require(SUCCEEDED(context->Map(staging.Get(), 0, D3D11_MAP_READ, 0, &mapped)), "Depth readback map failed");
+		std::vector<float> result(width * height);
+		for (UINT y = 0; y < height; ++y)
+			std::memcpy(result.data() + y * width, static_cast<const uint8_t*>(mapped.pData) + y * mapped.RowPitch, width * sizeof(float));
+		context->Unmap(staging.Get(), 0);
+		return result;
+	}
+
 	XMVECTOR HeadCentreInApp()
 	{
 		return (XMVector3TransformCoord(XMVectorZero(), EyeInApp(0, head)) +
@@ -313,16 +346,29 @@ namespace Test
 		const XMVECTOR position = XMVectorSet(left.pose.position.x, left.pose.position.y, left.pose.position.z, 1);
 		for (const auto& candidate : panels)
 		{
-			if (candidate.housing.renderMode != 2 || SpaceOf(candidate) != left.space) continue;
+			const int mode = candidate.housing.renderMode;
+			if ((mode != 2 && mode != 4) || SpaceOf(candidate) != left.space) continue;
+			const float planeZ = mode == 4 ? -std::clamp(candidate.housing.displayRecessMm, 0.0f, 20.0f) / 1000
+				: (0.006f - candidate.housing.depthMm / 1000) / 2;
 			const XMVECTOR housingCentre = XMVector3TransformCoord(
-				XMVectorSet(0, 0, (0.006f - candidate.housing.depthMm / 1000) / 2, 1), HousingInSpace(candidate));
+				XMVectorSet(0, 0, planeZ, 1), HousingInSpace(candidate));
 			if (XMVectorGetX(XMVector3Length(housingCentre - position)) < 0.00001f) panel = &candidate;
 		}
 		Require(panel != nullptr, "Stereo quad is not centred on its housing");
 		const XMMATRIX quadToApp = Matrix(left.pose) * ToApp(left.space);
 		const XMVECTOR toHead = HeadCentreInApp() - XMVector3TransformCoord(XMVectorZero(), quadToApp);
 		const XMVECTOR normal = XMVector3TransformNormal(XMVectorSet(0, 0, 1, 0), quadToApp);
-		Require(XMVectorGetX(XMVector3Dot(normal, XMVector3Normalize(toHead))) > 0.99999f, "Stereo quad does not face the head");
+		const float facing = XMVectorGetX(XMVector3Dot(normal, XMVector3Normalize(toHead)));
+		if (panel->housing.renderMode == 4)
+		{
+			const XMVECTOR display = XMVector3TransformNormal(XMVectorSet(0, 0, 1, 0), HousingInSpace(*panel) * ToApp(left.space));
+			if (XMVectorGetX(XMVector3Dot(display, XMVector3Normalize(toHead))) >= 0.5f)
+				Require(XMVectorGetX(XMVector3Dot(normal, display)) > 0.99999f, "Display-plane stereo quad left the display plane");
+			else
+				Require(fabsf(facing - 0.5f) < 0.0001f, "Display-plane stereo quad tilt is not clamped at 60 degrees");
+			++planeChecks;
+		}
+		else Require(facing > 0.99999f, "Stereo quad does not face the head");
 		ReferenceGeometry(*panel);
 		int visibleSamples = 0, yellowSamples = 0;
 		for (int eye = 0; eye < 2; ++eye)
@@ -427,7 +473,117 @@ namespace Test
 		Require(info->layers[0] == reinterpret_cast<const XrCompositionLayerBaseHeader*>(&original), "Host layer was modified");
 		Require(info->layerCount <= g_maxCompositionLayers, "Edit mode exceeded runtime composition layer limit");
 		if (rejectFrame) return XR_ERROR_LAYER_LIMIT_EXCEEDED;
-		if (stableFrame)
+		if (markerFrame)
+		{
+			Require(info->layerCount == 5, "Experimental housing is not one eye quad pair plus two depth references");
+			const auto& panel = panels[0];
+			XMVECTOR probes[2];
+			for (int i = 0; i < 2; ++i)
+				probes[i] = XMVector3TransformCoord(XMVectorSet(panel.widthMeters * (i == 0 ? -0.25f : 0.25f),
+					panel.heightMeters / 2 + 0.06f, -panel.housing.displayRecessMm / 1000 + (i == 0 ? 0.1f : -0.1f), 1),
+					HousingInSpace(panel) * ToApp(SpaceOf(panel)));
+			const XMVECTOR probe = probes[0];
+			const uint32_t expected[2] = { 0xffff0000, 0xff00ff00 };
+			for (int eye = 0; eye < 2; ++eye)
+			{
+				Require(info->layers[1 + eye]->type == XR_TYPE_COMPOSITION_LAYER_QUAD, "Experimental housing is not a quad layer");
+				const auto& quad = *reinterpret_cast<const XrCompositionLayerQuad*>(info->layers[1 + eye]);
+				Require(quad.eyeVisibility == (eye == 0 ? XR_EYE_VISIBILITY_LEFT : XR_EYE_VISIBILITY_RIGHT),
+					"Experimental housing eye visibility invalid");
+				const int size = quad.subImage.imageRect.extent.width;
+				const XMMATRIX appToQuad = XMMatrixInverse(nullptr, Matrix(quad.pose) * ToApp(quad.space));
+				XMFLOAT3 e, p;
+				XMStoreFloat3(&e, XMVector3TransformCoord(XMVector3TransformCoord(XMVectorZero(), EyeInApp(eye, head)), appToQuad));
+				XMStoreFloat3(&p, XMVector3TransformCoord(probe, appToQuad));
+				const float t = e.z / (e.z - p.z);
+				const int x = static_cast<int>(((e.x + (p.x - e.x) * t) / quad.size.width + 0.5f) * size);
+				const int y = static_cast<int>((0.5f - (e.y + (p.y - e.y) * t) / quad.size.height) * size);
+				Require(x > 8 && y > 8 && x < size - 8 && y < size - 8, "Depth probe marker lies outside the eye quad");
+				const auto pixels = Read(swapchains.at(quad.subImage.swapchain).texture.Get());
+				Require(pixels[y * size + x] == expected[eye], "Depth probe marker missing, misplaced or assigned to the wrong eye");
+			}
+			for (int i = 0; i < 2; ++i)
+			{
+				Require(info->layers[3 + i]->type == XR_TYPE_COMPOSITION_LAYER_QUAD, "Depth reference is not a quad layer");
+				const auto& reference = *reinterpret_cast<const XrCompositionLayerQuad*>(info->layers[3 + i]);
+				const XMVECTOR referencePosition = XMVector3TransformCoord(XMVectorSet(reference.pose.position.x,
+					reference.pose.position.y, reference.pose.position.z, 1), ToApp(reference.space));
+				Require(reference.eyeVisibility == XR_EYE_VISIBILITY_BOTH && reference.size.width == 0.01f &&
+					XMVectorGetX(XMVector3Length(referencePosition - probes[i])) < 0.00001f,
+					"Depth reference quad is not at its probe's 3D position");
+			}
+		}
+		else if (editHudBudgetFrame)
+		{
+			Require(info->layerCount == 2 && info->layers[1]->type == XR_TYPE_COMPOSITION_LAYER_QUAD,
+				"Edit-mode helper HUD was omitted when the layer budget was tight");
+			const auto& hud = *reinterpret_cast<const XrCompositionLayerQuad*>(info->layers[1]);
+			Require(hud.space == view && fabsf(hud.pose.position.x - 0.17f) < 0.00001f &&
+				fabsf(hud.pose.position.y - 0.03f) < 0.00001f && fabsf(hud.pose.position.z + 0.45f) < 0.00001f,
+				"The submitted edit helper layer was not the shortcut HUD");
+		}
+		else if (projectionFrame || projectionDepthFrame)
+		{
+			Require(info->layerCount == 3 && info->layers[1]->type == XR_TYPE_COMPOSITION_LAYER_PROJECTION,
+				"True stereo housing was not submitted as a projection layer alongside the dashboard");
+			const auto& scene = *reinterpret_cast<const XrCompositionLayerProjection*>(info->layers[1]);
+			Require(scene.space == local && scene.viewCount == 2 && scene.next == nullptr,
+				"True stereo housing projection metadata changed");
+			for (uint32_t v = 0; v < scene.viewCount; ++v)
+			{
+				const auto& view = scene.views[v];
+				const XrPosef expected = Pose(EyeInApp(v, head) * Matrix(appOrigin));
+				const XrPosef stale = Pose(Matrix(originalViews[v].pose) * Matrix(appOrigin));
+				Require(fabsf(expected.position.x - stale.position.x) > 0.001f,
+					"Test no longer distinguishes runtime eye poses from the host's submitted ones");
+				const float orientationDot = view.pose.orientation.x * expected.orientation.x +
+					view.pose.orientation.y * expected.orientation.y + view.pose.orientation.z * expected.orientation.z +
+					view.pose.orientation.w * expected.orientation.w;
+				const XMVECTOR actualPosition = XMVectorSet(view.pose.position.x, view.pose.position.y, view.pose.position.z, 0);
+				const XMVECTOR expectedPosition = XMVectorSet(expected.position.x, expected.position.y, expected.position.z, 0);
+				Require(view.type == XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW &&
+					XMVectorGetX(XMVector3Length(actualPosition - expectedPosition)) < 0.00001f &&
+					fabsf(orientationDot) > 0.99999f &&
+					view.fov.angleLeft == originalViews[v].fov.angleLeft &&
+					view.fov.angleRight == originalViews[v].fov.angleRight &&
+					view.fov.angleUp == originalViews[v].fov.angleUp &&
+					view.fov.angleDown == originalViews[v].fov.angleDown,
+					"Housing projection did not use the runtime's current eye view");
+				if (projectionDepthFrame)
+				{
+					Require(view.next != nullptr, "Depth-capable projection view omitted its depth info");
+					const auto& depthInfo = *reinterpret_cast<const XrCompositionLayerDepthInfoKHR*>(view.next);
+					const auto& depthChain = swapchains.at(depthInfo.subImage.swapchain);
+					D3D11_TEXTURE2D_DESC depthDesc{};
+					depthChain.texture->GetDesc(&depthDesc);
+					Require(depthChain.depth && depthDesc.Format == DXGI_FORMAT_D32_FLOAT &&
+						depthInfo.minDepth == 0.0f && depthInfo.maxDepth == 1.0f &&
+						depthInfo.nearZ == HousingRenderer::kNearZ && depthInfo.farZ == HousingRenderer::kFarZ,
+						"Projection depth target or depth metadata is invalid");
+					const auto depths = ReadDepth(depthChain.texture.Get());
+					Require(std::any_of(depths.begin(), depths.end(), [](float depth) { return depth >= 0.0f && depth < 1.0f; }),
+						"Housing geometry did not write compositor depth");
+				}
+				else Require(view.next == nullptr, "Depth info was submitted while depth support was disabled");
+				const auto pixels = Read(swapchains.at(view.subImage.swapchain).texture.Get());
+				const size_t coverage = std::count_if(pixels.begin(), pixels.end(), [](uint32_t pixel) { return (pixel >> 24) > 127; });
+				Require(coverage > 20, "True stereo housing projection rendered no geometry");
+			}
+			Require(info->layers[2]->type == XR_TYPE_COMPOSITION_LAYER_QUAD &&
+				reinterpret_cast<const XrCompositionLayerQuad*>(info->layers[2])->eyeVisibility == XR_EYE_VISIBILITY_BOTH &&
+				reinterpret_cast<const XrCompositionLayerQuad*>(info->layers[2])->subImage.imageRect.extent.width == kSourceW,
+				"True stereo mode changed or downsampled the separate dashboard");
+		}
+		else if (projectionBudgetFrame)
+		{
+			Require(info->layerCount == 2 && info->layers[1]->type == XR_TYPE_COMPOSITION_LAYER_QUAD,
+				"Projection housing exceeded the layer limit instead of preserving the dashboard");
+			const auto& dashboard = *reinterpret_cast<const XrCompositionLayerQuad*>(info->layers[1]);
+			Require(dashboard.eyeVisibility == XR_EYE_VISIBILITY_BOTH &&
+				dashboard.subImage.imageRect.extent.width == kSourceW,
+				"Dashboard was lost when the projection housing did not fit the layer budget");
+		}
+		else if (stableFrame)
 		{
 			size_t stableCount = 0, stereoCount = 0, contentCount = 0, housingCount = 0;
 			for (const auto& panel : panels)
@@ -665,7 +821,7 @@ int main()
 		panel.heightMeters = 0.24f;
 		panel.frameWidth = kSourceW;
 		panel.frameHeight = kSourceH;
-		panel.housing = { 0, 20, 80, 10, 0.3f, 0.3f, 0.3f, 0.8f, 0, 0, 2, 1 };
+		panel.housing = { 0, 20, 80, 10, 0.3f, 0.3f, 0.3f, 0.8f, 0, 2, 18, 12, 8, 24, 0, 40, {}, 2, 1 };
 		panels = { panel };
 		Frame();
 		const int firstCreates = creates;
@@ -680,6 +836,27 @@ int main()
 		head = Pose(XMMatrixRotationY(0.18f) * XMMatrixTranslation(0.09f, 0.025f, 0.04f));
 		Frame();
 		Require(creates == firstCreates, "Panel rotation or head movement recreated stereo swapchains");
+		const XrPosef movedHead = head;
+		panels[0].housing.renderMode = 4;
+		Frame();
+		const int planeCreates = creates;
+		for (float yaw : { 0.0f, 35.0f, 75.0f, 90.0f, 180.0f })
+		{
+			panels[0].rotationDegY = yaw;
+			Frame();
+		}
+		panels[0].rotationDegY = 35;
+		head = Pose(XMMatrixRotationY(-0.1f) * XMMatrixTranslation(-0.05f, 0.03f, 0.02f));
+		Frame();
+		Require(creates == planeCreates, "Display-plane stereo recreated swapchains for rotation or head movement");
+		Require(planeChecks == 7, "Display-plane stereo frames were not verified");
+		panels[0].housing.renderMode = 5;
+		markerFrame = true;
+		Frame();
+		markerFrame = false;
+		panels[0].housing.renderMode = 2;
+		panels[0].rotationDegY = 20;
+		head = movedHead;
 		bounds = { 0.125f, 0.25f, 0.75f, 0.875f, true };
 		Frame();
 		panel.panelId.bytes[0] = 2;
@@ -713,7 +890,49 @@ int main()
 		Frame();
 		Require(profileCoverage == roundedCoverage, "Switching back to Rounded did not rebuild the profile");
 		profileFrame = false;
+		panels[0].housing.renderMode = 3;
+		projectionFrame = true;
+		Frame();
+		projectionFrame = false;
+		projectionBudgetFrame = true;
+		g_maxCompositionLayers = 2;
+		Frame();
+		g_maxCompositionLayers = 16;
+		projectionBudgetFrame = false;
+		projectionFrame = true;
+		failDepthCreateView = depthCreates + 1;
+		HookedFunctions::SetDepthLayerSupported(true);
+		Frame();
+		failDepthCreateView = -1;
+		projectionDepthFrame = true;
+		Frame();
+		HookedFunctions::SetDepthLayerSupported(false);
+		projectionDepthFrame = false;
+		projectionFrame = false;
+		const IpcServer::PanelState housingPanel = panels[0];
+		IpcServer::PanelState contentPanel{};
+		contentPanel.enabled = contentPanel.hasFrame = true;
+		contentPanel.panelId.bytes[0] = 10;
+		contentPanel.positionZ = -0.8f;
+		contentPanel.widthMeters = 0.4f;
+		contentPanel.heightMeters = 0.24f;
+		contentPanel.frameWidth = kSourceW;
+		contentPanel.frameHeight = kSourceH;
+		IpcServer::PanelState editHud = contentPanel;
+		editHud.panelId.bytes[0] = 11;
+		editHud.headLocked = true;
+		editHud.nonInteractive = true;
+		editHud.positionX = 0.17f;
+		editHud.positionY = 0.03f;
+		editHud.positionZ = -0.45f;
+		panels = { contentPanel, editHud };
+		editHudBudgetFrame = true;
+		g_maxCompositionLayers = 2;
+		Frame();
+		g_maxCompositionLayers = 16;
+		editHudBudgetFrame = false;
 		stableFrame = true;
+		panels = { housingPanel };
 		panels[0].housing.renderMode = 1;
 		panels[0].panelId.bytes[0] = 5;
 		profile.frontCornerRadiusMm = 80;
@@ -786,8 +1005,8 @@ int main()
 		g_panelSwapchains.clear();
 		swapchains.clear();
 		std::cout << "PASS: " << checkedFrames << " frames, " << rayChecks << " independent housing rays, " << displayChecks <<
-			" textured display samples, " << emptyChecks << " transparent texels; head-facing eye quads from current (not host-submitted) "
-			"eye poses, 90/180-degree views, canted eyes, moving head, LOCAL/VIEW spaces, cropped content, typeless color, "
+			" textured display samples, " << emptyChecks << " transparent texels; true stereo projection uses current runtime eye poses, submits optional depth, keeps the dashboard separate, and falls back under layer pressure; "
+			"head-facing and display-plane eye quads, 90/180-degree views, canted eyes, moving head, LOCAL/VIEW spaces, cropped content, typeless color, "
 			"Round/Flat/Round profile changes, edit-mode and stereo layer budgeting, far-to-near order, "
 			"stable full-resolution dashboard, independent scale, mixed stable/stereo modes, mode switching, "
 			"single end-frame call, owned snapshots, failure fallback, image lifetime, stable swapchains, clean D3D11 debug layer\n";

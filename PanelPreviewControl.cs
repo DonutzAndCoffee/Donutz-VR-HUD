@@ -25,6 +25,7 @@ namespace Donutz_VR_HUD
         private PanelPreviewSource? _source;
         private BitmapSource? _frame;
         private BitmapSource? _housingFrame;
+        private BitmapSource? _logoFrame;
         private byte[] _ledColors = [];
         private bool _isLoaded;
         private bool _sourceDirty = true;
@@ -69,6 +70,7 @@ namespace Donutz_VR_HUD
             StopSource();
             _panel = _isLoaded ? DataContext as OverlayPanel : null;
             if (_panel is not null) _panel.PropertyChanged += OnPanelPropertyChanged;
+            LoadLogo();
             _sourceDirty = true;
             InvalidateVisual();
         }
@@ -104,7 +106,33 @@ namespace Donutz_VR_HUD
                 _sourceDirty = true;
                 _sourceChanged = Stopwatch.GetTimestamp();
             }
+            if (e.PropertyName is nameof(OverlayPanel.HousingLogoPath) or nameof(OverlayPanel.HousingLogoPosition))
+                LoadLogo();
             InvalidateVisual();
+        }
+
+        private void LoadLogo()
+        {
+            _logoFrame = null;
+            if (_panel is null || _panel.HousingLogoPosition == HousingLogoPosition.None ||
+                string.IsNullOrWhiteSpace(_panel.HousingLogoPath))
+                return;
+
+            try
+            {
+                var image = new BitmapImage();
+                image.BeginInit();
+                image.CacheOption = BitmapCacheOption.OnLoad;
+                image.UriSource = new Uri(Path.GetFullPath(_panel.HousingLogoPath), UriKind.Absolute);
+                image.EndInit();
+                image.Freeze();
+                _logoFrame = image;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+                ArgumentException or FormatException or NotSupportedException or ExternalException)
+            {
+                OverlayIpcClient.AppendAppLogEntry($"Panel preview could not load housing logo '{_panel.HousingLogoPath}': {ex.Message}");
+            }
         }
 
         private async Task RefreshAsync()
@@ -182,10 +210,13 @@ namespace Donutz_VR_HUD
                 panelWidth *= (double)displayFrame.PixelWidth / _frame.PixelWidth;
                 panelHeight *= (double)displayFrame.PixelHeight / _frame.PixelHeight;
             }
-            var bezelMeters = _panel.HousingEnabled ? Math.Clamp(_panel.HousingBezelWidthMm, 1, 100) / 1000.0 : 0;
+            var bezelTop = _panel.HousingEnabled ? Math.Clamp(_panel.HousingBezelTopMm, 0, 100) / 1000.0 : 0;
+            var bezelBottom = _panel.HousingEnabled ? Math.Clamp(_panel.HousingBezelBottomMm, 0, 100) / 1000.0 : 0;
+            var bezelLeft = _panel.HousingEnabled ? Math.Clamp(_panel.HousingBezelLeftMm, 0, 100) / 1000.0 : 0;
+            var bezelRight = _panel.HousingEnabled ? Math.Clamp(_panel.HousingBezelRightMm, 0, 100) / 1000.0 : 0;
             var scale = Math.Min(
-                (ActualWidth - margin * 2) / (panelWidth + bezelMeters * 2),
-                (ActualHeight - margin * 2) / (panelHeight + bezelMeters * 2));
+                (ActualWidth - margin * 2) / (panelWidth + bezelLeft + bezelRight),
+                (ActualHeight - margin * 2) / (panelHeight + bezelTop + bezelBottom));
             if (!double.IsFinite(scale) || scale <= 0)
             {
                 return;
@@ -193,13 +224,16 @@ namespace Donutz_VR_HUD
 
             var screenWidth = panelWidth * scale;
             var screenHeight = panelHeight * scale;
-            var bezel = bezelMeters * scale;
-            var totalWidth = screenWidth + bezel * 2;
-            var totalHeight = screenHeight + bezel * 2;
+            bezelTop *= scale;
+            bezelBottom *= scale;
+            bezelLeft *= scale;
+            bezelRight *= scale;
+            var totalWidth = screenWidth + bezelLeft + bezelRight;
+            var totalHeight = screenHeight + bezelTop + bezelBottom;
             var left = (ActualWidth - totalWidth) / 2;
             var top = (ActualHeight - totalHeight) / 2;
             var outer = new Rect(left, top, totalWidth, totalHeight);
-            var screen = new Rect(left + bezel, top + bezel, screenWidth, screenHeight);
+            var screen = new Rect(left + bezelLeft, top + bezelTop, screenWidth, screenHeight);
             var cornerRadius = _panel.HousingEnabled
                 ? Math.Clamp(_panel.HousingCornerRadiusMm, 0, 50) * scale / 1000.0
                 : 2;
@@ -211,6 +245,7 @@ namespace Donutz_VR_HUD
                     new SolidColorBrush(housingColor),
                     new Pen(new SolidColorBrush(Color.FromRgb(94, 98, 105)), 1),
                     outer, cornerRadius, cornerRadius);
+                DrawLogo(drawingContext, screen, scale, bezelTop, bezelBottom, bezelLeft, bezelRight);
             }
 
             drawingContext.DrawRectangle(Brushes.Black, null, screen);
@@ -241,6 +276,39 @@ namespace Donutz_VR_HUD
             }
         }
 
+        private void DrawLogo(DrawingContext drawingContext, Rect screen, double scale,
+            double bezelTop, double bezelBottom, double bezelLeft, double bezelRight)
+        {
+            if (_logoFrame is null || _panel is null)
+                return;
+
+            var position = _panel.HousingLogoPosition;
+            var isTop = position is HousingLogoPosition.TopCenter or HousingLogoPosition.TopLeft or HousingLogoPosition.TopRight;
+            var edgeWidth = isTop ? bezelTop : bezelBottom;
+            if (edgeWidth <= scale / 1000.0 || _logoFrame.PixelWidth == 0 || _logoFrame.PixelHeight == 0)
+                return;
+
+            var logoWidth = Math.Min(Math.Clamp(_panel.HousingLogoWidthMm, 5, 100) * scale / 1000.0, screen.Width * 0.8);
+            var logoHeight = logoWidth * _logoFrame.PixelHeight / _logoFrame.PixelWidth;
+            var maxHeight = Math.Max(0, edgeWidth - scale / 1000.0);
+            if (logoHeight > maxHeight)
+            {
+                logoWidth *= maxHeight / logoHeight;
+                logoHeight = maxHeight;
+            }
+            if (logoWidth < 1 || logoHeight < 1)
+                return;
+
+            var centerX = position switch
+            {
+                HousingLogoPosition.TopLeft or HousingLogoPosition.BottomLeft => screen.Left - bezelLeft / 2 + logoWidth / 2,
+                HousingLogoPosition.TopRight or HousingLogoPosition.BottomRight => screen.Right + bezelRight / 2 - logoWidth / 2,
+                _ => screen.Left + screen.Width / 2
+            };
+            var centerY = isTop ? screen.Top - edgeWidth / 2 : screen.Bottom + edgeWidth / 2;
+            drawingContext.DrawImage(_logoFrame, new Rect(centerX - logoWidth / 2, centerY - logoHeight / 2, logoWidth, logoHeight));
+        }
+
         private void DrawEdge(DrawingContext drawingContext, Rect screen, double scale, int edge,
             bool enabled, int count, int start, bool reverse)
         {
@@ -253,7 +321,14 @@ namespace Donutz_VR_HUD
             var horizontal = edge < 2;
             var length = horizontal ? screen.Width : screen.Height;
             var pitch = length * _panel!.HousingLedWidth / count;
-            var bezelPixels = Math.Clamp(_panel.HousingBezelWidthMm, 1, 100) * scale / 1000.0;
+            var bezelMm = edge switch
+            {
+                0 => _panel.HousingBezelTopMm,
+                1 => _panel.HousingBezelBottomMm,
+                2 => _panel.HousingBezelLeftMm,
+                _ => _panel.HousingBezelRightMm
+            };
+            var bezelPixels = Math.Clamp(bezelMm, 0, 100) * scale / 1000.0;
             var fixedCoordinate = (horizontal ? screen.Height : screen.Width) / 2 + bezelPixels * 0.4;
             var radius = Math.Max(0.3, Math.Min(bezelPixels * 0.18, pitch * 0.32));
             var middleX = screen.X + screen.Width / 2;

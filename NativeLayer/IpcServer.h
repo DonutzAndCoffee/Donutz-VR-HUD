@@ -154,9 +154,17 @@ namespace IpcServer
 		float metallic;
 		// Outer corner radius of the housing.
 		float cornerRadiusMm;
-		// 0 = fallback quads, 1 = stable panel-space mesh, 2 = experimental stereo scene.
+		float bezelTopMm = 12.0f;
+		float bezelBottomMm = 12.0f;
+		float bezelLeftMm = 12.0f;
+		float bezelRightMm = 12.0f;
+		uint8_t logoPosition = 0;
+		float logoWidthMm = 40.0f;
+		wchar_t logoPath[512]{};
+		// 0 = fallback quads, 1 = stable mesh, 2 = head-facing stereo quads, 3 = true stereo projection,
+		// 4 = display-plane stereo quads (recommended), 5 = experimental (4 plus depth check marker).
 		uint8_t renderMode;
-		// Housing resolution scale; experimental mode also scales the dashboard (0.5..1).
+		// Housing resolution scale; mode 2 also scales the dashboard (0.5..1).
 		float renderScale;
 	};
 
@@ -183,6 +191,7 @@ namespace IpcServer
 		uint8_t enabled;
 		HousingParams params;
 	};
+	static_assert(sizeof(SetHousingParamsPayload) == 1104, "Housing params IPC layout mismatch");
 
 	struct HousingLedEdge
 	{

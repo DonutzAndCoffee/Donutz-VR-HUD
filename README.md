@@ -21,7 +21,7 @@ The two components communicate via a local **named pipe IPC channel** (panel tra
   - Panel highlight overlays
   - Test pattern (for calibration)
 - Per-panel **head-locked** or **cockpit-fixed** placement, with optional opaque or alpha-blended background.
-- Optional per-panel **3D housing**: a bezel/case that adapts to the panel size (configurable bezel width, depth, display recess, color, roughness, metallic and corner size). It is lit only by the sim's own rendered image, so it automatically gets dark at night or in tunnels.
+- Optional per-panel **3D housing**: a bezel/case that adapts to the panel size, with independently adjustable top, bottom, left and right thickness. Choose a logo image and place it at the top center or in any frame corner. Depth, display recess, color, roughness, metallic and corner size are also configurable. It is lit only by the sim's own rendered image, so it automatically gets dark at night or in tunnels.
 - **VR controller interaction** (experimental): grab-and-move panels with the grip button and fine-nudge them with the thumbstick, using standard OpenXR actions — no SteamVR-specific SDK required, so it works with any OpenXR runtime.
 - **Profiles** for saving/restoring different panel layouts per game or session.
 - **SimHub** integration for telemetry data and optional per-housing LED effects on all four edges.
@@ -44,9 +44,15 @@ Demo Video: https://www.youtube.com/watch?v=1OoOyWGcSLQ
 
 ## Panel preview
 
-Expand a non-visor panel to see its actual web dashboard, captured window, image, or animated test pattern, even while the VR overlay is stopped. The housing is shown from the front, not with the VR renderer's 3D lighting. With housing enabled, its opening and LED strips fit the visible content, excluding transparent outer margins using the same alpha threshold as the VR renderer. The cropped screen retains its physical scale relative to the bezel; disabling housing shows the entire source again. Fully transparent frames fall back to the full source dimensions. Transparency inside the content uses a checkerboard unless **Black instead of transparency** is enabled. Preview sources run only while the preview is visible and are separate from VR sources; web dashboards therefore have a separate browser session.
+Expand a non-visor panel to see its actual web dashboard, captured window, image, or animated test pattern, even while the VR overlay is stopped. The housing is shown from the front, not with the VR renderer's 3D lighting, and reflects the independently configured bezel widths and logo placement. With housing enabled, its opening and LED strips fit the visible content, excluding transparent outer margins using the same alpha threshold as the VR renderer. The cropped screen retains its physical scale relative to the bezel; disabling housing shows the entire source again. Fully transparent frames fall back to the full source dimensions. Transparency inside the content uses a checkerboard unless **Black instead of transparency** is enabled. Preview sources run only while the preview is visible and are separate from VR sources; web dashboards therefore have a separate browser session.
 
 LEDs show the real SimHub stream by default, including effects driven by SimHub test data or forced activations. Enable **Simulate RPM LEDs in preview** for an animated test without SimHub; it affects only the desktop preview, never LEDs in VR. Both modes use the panel's edge enables, channel ranges, reversal, strip width, and brightness. Vertical strips run bottom to top, horizontal strips left to right, unless reversed. Without live packets for two seconds, preview LEDs turn off just like in VR. The status below the preview reports missing data, source failures, and receiver errors.
+
+## 3D housing and world scale
+
+If a stereo 3D housing looks distorted in depth, check the VR runtime's world-scale settings. In an iRacing test with SteamVR, a per-application world scale of **107%** caused visible distortion; setting it to **100%** resolved it. This is a tested workaround, not a requirement for every headset or runtime. The housing's **Render scale** setting controls image resolution and is unrelated to world scale.
+
+Donutz VR HUD currently has no runtime-independent world-scale correction. OpenXR provides view poses but no standard world-scale value that the HUD can reliably use to compensate for differences between runtimes. Other runtimes, including Pimax Play, have not been verified for this issue; if a similar distortion occurs, check their scale settings if available and try their neutral/default setting.
 
 ## SimHub RPM LEDs
 
@@ -93,7 +99,16 @@ When upgrading, close the HUD and your VR application, extract the complete new 
 
 ## Changelog
 
+### v1.7.1
+- Make display-plane Stereo 3D the recommended housing mode and default, improving dashboard alignment compared with the earlier head-facing stereo mode.
+- Offer only Stereo 3D (recommended) and Mesh. Keep experimental and legacy renderers in the code; saved experimental/projection/head-facing stereo modes migrate to the recommended mode, and legacy Quads migrate to Mesh.
+- Support independent bezel widths and housing logos in VR and desktop previews.
+- Prioritize edit helpers, including the shortcut HUD, when the OpenXR layer budget is tight.
+- Document the tested SteamVR world-scale workaround: use 100% if a scaled world causes housing depth distortion. No automatic world-scale compensation is provided.
+- Update the app and native OpenXR layer together: the housing IPC format has changed.
+
 ### v1.7.0
+- Add a recommended true-stereo housing projection mode with a sharp, separate dashboard, while retaining the compositor-stabilized stereo mode for comparison.
 - Live desktop previews for web dashboards, captured windows, images and test patterns, without starting the VR overlay; helmet visors remain excluded.
 - Preview actual SimHub LED effects and test data, or enable a preview-only animated RPM simulation without SimHub.
 - Automatically fit preview housings and LED strips to visible content, ignoring transparent outer margins using the native renderer's alpha threshold.
@@ -118,7 +133,7 @@ When upgrading, close the HUD and your VR application, extract the complete new 
 ### v1.5.0
 - New optional per-panel 3D housing: bezel/case around the panel with configurable bezel width, depth, color, roughness, metallic and corner size (mm). The display sits 1 mm recessed behind the bezel; the panel content stays fully sharp.
 - Housing lighting follows the sim's own rendered image (gets darker at night or in tunnels).
-- Housing render mode per panel: "Quads" (lightweight) or "Mesh" (true 3D mesh rendered per eye into one projection layer, with optional depth submission). Mesh mode supports profiles (Flat, Rounded, Chamfered; custom profiles in `%LocalAppData%\Donutz VR HUD\housing-profiles.json`) and a render scale of 50–100 %.
+- Housing render mode per panel (current selection): "Stereo 3D" (recommended; housing and dashboard on per-eye quads lying in the display plane) or "Mesh" (stable housing quads). Experimental stereo diagnostics, legacy "Quads", the earlier head-facing stereo quads and a true per-eye projection mode remain in the native code but are not selectable; the projection mode was misplaced and jittery in testing on SteamVR. Housing profiles (Flat, Rounded, Chamfered; custom profiles in `%LocalAppData%\Donutz VR HUD\housing-profiles.json`) and render scale of 50–100 % are supported.
 - Housing layers are dropped automatically if the runtime's layer limit would be exceeded; panels themselves stay visible.
 - Robustness: if the VR runtime rejects a frame because of too many layers, the HUD falls back to the sim's own layers instead of freezing the headset.
 

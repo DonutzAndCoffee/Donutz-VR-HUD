@@ -9,12 +9,11 @@
 #include <string>
 #include <vector>
 
-// Procedural 3D panel housing ("Mesh" render mode). Each housed panel gets a
-// mesh built by sweeping a rounded-rectangle outline along the panel's
-// housing profile (see IpcServer::HousingProfile). Stable mode renders only
-// the housing into panel-space eye quads, preserving the separate dashboard.
-// Stereo 3D mode renders housing and display together per eye; the caller
-// presents that image on a head-facing quad.
+// Procedural 3D panel housing. Each housed panel gets a mesh built by sweeping
+// a rounded-rectangle outline along its housing profile (see IpcServer::HousingProfile).
+// Stable mode renders only the housing into panel-space eye quads, preserving the
+// separate dashboard. The legacy stereo mode uses head-facing eye quads; the true
+// projection mode can also render depth into a runtime-owned D32 target.
 //
 // Lighting is sim-agnostic: a hemisphere ambient + environment specular
 // derived from the app's own eye image (see LightProbe). The view vector
@@ -56,7 +55,8 @@ namespace HousingRenderer
 		const XrVector3f& headPosition,
 		const std::vector<Instance>& instances,
 		const donutz::ProbeLighting& lighting,
-		bool renderContent = true);
+		bool renderContent = true,
+		ID3D11Texture2D* depthTarget = nullptr);
 
 	// Projection planes used for rendering.
 	constexpr float kNearZ = 0.02f;

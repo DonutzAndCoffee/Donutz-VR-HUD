@@ -3,6 +3,8 @@
 
 #include <d3d11_1.h>
 #include <d3dcompiler.h>
+#include <objbase.h>
+#include <wincodec.h>
 #include <wrl/client.h>
 
 #include <algorithm>
@@ -12,6 +14,7 @@
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
+#include <vector>
 
 using Microsoft::WRL::ComPtr;
 
@@ -151,8 +154,19 @@ float4 PSContent(PSIn input) : SV_TARGET
 	{
 		ComPtr<ID3D11Buffer> vb;
 		ComPtr<ID3D11Buffer> contentVb;
+		ComPtr<ID3D11Buffer> logoVb;
 		UINT vertexCount = 0;
+		UINT logoVertexCount = 0;
 		std::string signature;
+	};
+
+	struct LogoCache
+	{
+		ComPtr<ID3D11Texture2D> texture;
+		ComPtr<ID3D11ShaderResourceView> srv;
+		UINT width = 0;
+		UINT height = 0;
+		std::wstring path;
 	};
 
 	struct ContentCache
@@ -162,6 +176,7 @@ float4 PSContent(PSIn input) : SV_TARGET
 		bool mips = false;
 	};
 	std::unordered_map<std::string, ContentCache> g_contents;
+	std::unordered_map<std::string, LogoCache> g_logos;
 
 	std::mutex g_mutex;
 	ID3D11Device* g_device = nullptr;
@@ -215,6 +230,92 @@ float4 PSContent(PSIn input) : SV_TARGET
 		return c <= 0.04045f ? c / 12.92f : powf((c + 0.055f) / 1.055f, 2.4f);
 	}
 
+	bool LoadLogoLocked(ID3D11Device* device, const std::string& key, const IpcServer::HousingParams& params)
+	{
+		if (params.logoPosition == 0 || params.logoPath[0] == L'\0')
+		{
+			g_logos.erase(key);
+			return false;
+		}
+
+		size_t pathLength = 0;
+		while (pathLength < std::size(params.logoPath) && params.logoPath[pathLength] != L'\0') ++pathLength;
+		const std::wstring path(params.logoPath, pathLength);
+		auto existing = g_logos.find(key);
+		if (existing != g_logos.end() && existing->second.path == path && existing->second.srv)
+		{
+			return true;
+		}
+
+		struct ComScope
+		{
+			HRESULT result = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+			~ComScope() { if (SUCCEEDED(result)) CoUninitialize(); }
+			bool Ready() const { return SUCCEEDED(result) || result == RPC_E_CHANGED_MODE; }
+		} com;
+		if (!com.Ready())
+		{
+			Logging::Log("HousingRenderer: COM initialization failed while loading a logo.");
+			g_logos.erase(key);
+			return false;
+		}
+
+		ComPtr<IWICImagingFactory> factory;
+		ComPtr<IWICBitmapDecoder> decoder;
+		ComPtr<IWICBitmapFrameDecode> frame;
+		ComPtr<IWICFormatConverter> converter;
+		HRESULT hr = CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&factory));
+		if (SUCCEEDED(hr)) hr = factory->CreateDecoderFromFilename(path.c_str(), nullptr, GENERIC_READ, WICDecodeMetadataCacheOnLoad, &decoder);
+		if (SUCCEEDED(hr)) hr = decoder->GetFrame(0, &frame);
+		if (SUCCEEDED(hr)) hr = factory->CreateFormatConverter(&converter);
+		if (SUCCEEDED(hr)) hr = converter->Initialize(frame.Get(), GUID_WICPixelFormat32bppRGBA,
+			WICBitmapDitherTypeNone, nullptr, 0.0, WICBitmapPaletteTypeCustom);
+		UINT width = 0, height = 0;
+		if (SUCCEEDED(hr)) hr = converter->GetSize(&width, &height);
+		if (FAILED(hr) || width == 0 || height == 0 || width > 4096 || height > 4096 ||
+			static_cast<uint64_t>(width) * height > 16ull * 1024 * 1024)
+		{
+			Logging::Log("HousingRenderer: logo image could not be decoded or exceeds the supported size.");
+			g_logos.erase(key);
+			return false;
+		}
+
+		std::vector<uint8_t> pixels(static_cast<size_t>(width) * height * 4);
+		hr = converter->CopyPixels(nullptr, width * 4, static_cast<UINT>(pixels.size()), pixels.data());
+		if (FAILED(hr))
+		{
+			Logging::Log("HousingRenderer: copying logo pixels failed.");
+			g_logos.erase(key);
+			return false;
+		}
+
+		D3D11_TEXTURE2D_DESC desc{};
+		desc.Width = width;
+		desc.Height = height;
+		desc.MipLevels = 1;
+		desc.ArraySize = 1;
+		desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+		desc.SampleDesc.Count = 1;
+		desc.Usage = D3D11_USAGE_IMMUTABLE;
+		desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+		D3D11_SUBRESOURCE_DATA data{};
+		data.pSysMem = pixels.data();
+		data.SysMemPitch = width * 4;
+		LogoCache logo;
+		logo.width = width;
+		logo.height = height;
+		logo.path = path;
+		if (FAILED(device->CreateTexture2D(&desc, &data, &logo.texture)) ||
+			FAILED(device->CreateShaderResourceView(logo.texture.Get(), nullptr, &logo.srv)))
+		{
+			Logging::Log("HousingRenderer: creating the logo texture failed.");
+			g_logos.erase(key);
+			return false;
+		}
+		g_logos[key] = std::move(logo);
+		return true;
+	}
+
 	bool IsSrgb(DXGI_FORMAT format)
 	{
 		return format == DXGI_FORMAT_R8G8B8A8_UNORM_SRGB || format == DXGI_FORMAT_B8G8R8A8_UNORM_SRGB;
@@ -251,11 +352,13 @@ float4 PSContent(PSIn input) : SV_TARGET
 
 	// Rounded rectangle outline (CCW seen from +z), always the same point
 	// count for a given segment count so consecutive rings can be swept.
-	std::vector<Vec3> Outline(float halfW, float halfH, float radius, float z, uint32_t segments)
+	std::vector<Vec3> OutlineBounds(float left, float bottom, float right, float top, float radius, float z, uint32_t segments)
 	{
+		const float halfW = (right - left) * 0.5f;
+		const float halfH = (top - bottom) * 0.5f;
 		radius = std::clamp(radius, 0.0f, (std::min)(halfW, halfH));
-		const float cx[4] = { halfW - radius, -(halfW - radius), -(halfW - radius), halfW - radius };
-		const float cy[4] = { halfH - radius, halfH - radius, -(halfH - radius), -(halfH - radius) };
+		const float cx[4] = { right - radius, left + radius, left + radius, right - radius };
+		const float cy[4] = { top - radius, top - radius, bottom + radius, bottom + radius };
 		std::vector<Vec3> pts;
 		pts.reserve(4 * (segments + 1));
 		for (int corner = 0; corner < 4; ++corner)
@@ -269,6 +372,11 @@ float4 PSContent(PSIn input) : SV_TARGET
 		return pts;
 	}
 
+	std::vector<Vec3> Outline(float halfW, float halfH, float radius, float z, uint32_t segments)
+	{
+		return OutlineBounds(-halfW, -halfH, halfW, halfH, radius, z, segments);
+	}
+
 	void SweepRings(std::vector<Vertex>& out, const std::vector<Vec3>& a, const std::vector<Vec3>& b,
 		const float albedo[4], float roughness, float metallic)
 	{
@@ -280,16 +388,66 @@ float4 PSContent(PSIn input) : SV_TARGET
 		}
 	}
 
+	std::vector<Vertex> BuildLogoMesh(const HousingRenderer::Instance& inst, const LogoCache& logo)
+	{
+		std::vector<Vertex> vertices;
+		const auto& p = inst.params;
+		const int position = p.logoPosition;
+		if (position < 1 || position > 5) return vertices;
+		const bool top = position <= 3;
+		const float edgeWidthMm = top ? p.bezelTopMm : p.bezelBottomMm;
+		if (edgeWidthMm <= 0.5f || logo.width == 0 || logo.height == 0) return vertices;
+		float width = (std::min)(std::clamp(p.logoWidthMm, 5.0f, 100.0f) * 0.001f, inst.widthMeters * 0.8f);
+		float height = width * static_cast<float>(logo.height) / logo.width;
+		const float maxHeight = (std::max)(0.0f, edgeWidthMm * 0.001f - 0.001f);
+		if (height > maxHeight)
+		{
+			width *= maxHeight / height;
+			height = maxHeight;
+		}
+		if (width < 0.001f || height < 0.001f) return vertices;
+
+		const float halfWidth = width * 0.5f;
+		const float halfHeight = height * 0.5f;
+		const float hw = inst.widthMeters * 0.5f;
+		const float hh = inst.heightMeters * 0.5f;
+		float x = 0.0f;
+		if (position == 2 || position == 4) x = -hw - std::clamp(p.bezelLeftMm, 0.0f, 100.0f) * 0.0005f + halfWidth;
+		if (position == 3 || position == 5) x = hw + std::clamp(p.bezelRightMm, 0.0f, 100.0f) * 0.0005f - halfWidth;
+		const float y = top ? hh + edgeWidthMm * 0.0005f : -hh - edgeWidthMm * 0.0005f;
+		const float z = 0.0008f;
+		const float albedo[4] = { 1.0f, 1.0f, 1.0f, 0.0f };
+		const auto vertex = [&](float px, float py, float u, float v)
+		{
+			Vertex result{};
+			result.pos[0] = px; result.pos[1] = py; result.pos[2] = z;
+			result.normal[2] = 1.0f;
+			std::memcpy(result.albedo, albedo, sizeof(albedo));
+			result.material[0] = u; result.material[1] = v;
+			return result;
+		};
+		vertices = {
+			vertex(x - halfWidth, y + halfHeight, 0.0f, 0.0f),
+			vertex(x - halfWidth, y - halfHeight, 0.0f, 1.0f),
+			vertex(x + halfWidth, y - halfHeight, 1.0f, 1.0f),
+			vertex(x - halfWidth, y + halfHeight, 0.0f, 0.0f),
+			vertex(x + halfWidth, y - halfHeight, 1.0f, 1.0f),
+			vertex(x + halfWidth, y + halfHeight, 1.0f, 0.0f)
+		};
+		return vertices;
+	}
+
 	void BuildMesh(const HousingRenderer::Instance& inst, std::vector<Vertex>& out)
 	{
 		const auto& p = inst.params;
 		const float hw = inst.widthMeters * 0.5f;
 		const float hh = inst.heightMeters * 0.5f;
-		const float bezel = std::clamp(p.bezelWidthMm, 1.0f, 100.0f) * 0.001f;
+		const float bezelTop = std::clamp(p.bezelTopMm, 0.0f, 100.0f) * 0.001f;
+		const float bezelBottom = std::clamp(p.bezelBottomMm, 0.0f, 100.0f) * 0.001f;
+		const float bezelLeft = std::clamp(p.bezelLeftMm, 0.0f, 100.0f) * 0.001f;
+		const float bezelRight = std::clamp(p.bezelRightMm, 0.0f, 100.0f) * 0.001f;
 		const float depth = std::clamp(p.depthMm, 2.0f, 200.0f) * 0.001f;
 		const float recess = std::clamp(p.displayRecessMm, 0.0f, 20.0f) * 0.001f;
-		const float ow = hw + bezel;
-		const float oh = hh + bezel;
 		const float roughness = std::clamp(p.roughness, 0.05f, 1.0f);
 		const float metallic = std::clamp(p.metallic, 0.0f, 1.0f);
 		const float albedo[4] = { SrgbToLinear(p.colorR), SrgbToLinear(p.colorG), SrgbToLinear(p.colorB), 1.0f };
@@ -318,7 +476,7 @@ float4 PSContent(PSIn input) : SV_TARGET
 		}
 
 		// Recessed display opening + inner lip.
-		const float openRadius = (std::max)(0.0f, frontRadius - bezel);
+		const float openRadius = (std::max)(0.0f, frontRadius - (std::min)({ bezelTop, bezelBottom, bezelLeft, bezelRight }));
 		const auto openFront = Outline(hw, hh, openRadius, 0.0f, segments);
 		const auto openBack = Outline(hw, hh, openRadius, -recess, segments);
 		SweepRings(out, openFront, openBack, albedo, roughness, metallic);
@@ -330,7 +488,8 @@ float4 PSContent(PSIn input) : SV_TARGET
 			const float t = std::clamp(-pt.zPercent / 100.0f, 0.0f, 1.0f);
 			const float inset = (std::max)(0.0f, pt.insetMm) * 0.001f;
 			const float radius = (std::max)(0.0f, frontRadius + (backRadius - frontRadius) * t - inset);
-			rings.push_back(Outline((std::max)(hw, ow - inset), (std::max)(hh, oh - inset), radius,
+			rings.push_back(OutlineBounds(-hw - bezelLeft + inset, -hh - bezelBottom + inset,
+				hw + bezelRight - inset, hh + bezelTop - inset, radius,
 				std::clamp(pt.zPercent, -100.0f, 0.0f) * 0.01f * depth, segments));
 		}
 
@@ -365,10 +524,11 @@ float4 PSContent(PSIn input) : SV_TARGET
 				continue;
 			}
 			const bool horizontal = edgeIndex < 2;
+			const float edgeBezel = edgeIndex == 0 ? bezelTop : edgeIndex == 1 ? bezelBottom : edgeIndex == 2 ? bezelLeft : bezelRight;
 			const float length = horizontal ? inst.widthMeters : inst.heightMeters;
 			const float pitch = length * inst.leds.width / edge.count;
-			const float radius = (std::min)(bezel * 0.18f, pitch * 0.32f);
-			const float fixedCoord = (horizontal ? hh : hw) + bezel * 0.4f;
+			const float radius = (std::min)(edgeBezel * 0.18f, pitch * 0.32f);
+			const float fixedCoord = (horizontal ? hh : hw) + edgeBezel * 0.4f;
 			const float sign = (edgeIndex == 0 || edgeIndex == 3) ? 1.0f : -1.0f;
 			for (uint32_t i = 0; i < edge.count; ++i)
 			{
@@ -395,9 +555,12 @@ float4 PSContent(PSIn input) : SV_TARGET
 		const auto& p = inst.params;
 		std::string s = std::to_string(inst.widthMeters) + "|" + std::to_string(inst.heightMeters) + "|" +
 			std::to_string(inst.contentWidthMeters) + "|" + std::to_string(inst.contentHeightMeters) + "|" +
-			std::to_string(p.bezelWidthMm) + "|" + std::to_string(p.depthMm) + "|" + std::to_string(p.displayRecessMm) + "|" + std::to_string(p.cornerRadiusMm) + "|" +
+			std::to_string(p.bezelTopMm) + "|" + std::to_string(p.bezelBottomMm) + "|" + std::to_string(p.bezelLeftMm) + "|" + std::to_string(p.bezelRightMm) + "|" +
+			std::to_string(p.depthMm) + "|" + std::to_string(p.displayRecessMm) + "|" + std::to_string(p.cornerRadiusMm) + "|" +
 			std::to_string(p.colorR) + "|" + std::to_string(p.colorG) + "|" + std::to_string(p.colorB) + "|" +
-			std::to_string(p.roughness) + "|" + std::to_string(p.metallic) + "|led" + std::to_string(inst.leds.width);
+			std::to_string(p.roughness) + "|" + std::to_string(p.metallic) + "|logo" + std::to_string(p.logoPosition) + ":" +
+			std::to_string(p.logoWidthMm) + "|led" + std::to_string(inst.leds.width);
+		s.append(reinterpret_cast<const char*>(p.logoPath), sizeof(p.logoPath));
 		for (const auto& edge : inst.leds.edges)
 		{
 			s += "|" + std::to_string(edge.enabled) + "," + std::to_string(edge.count) + "," +
@@ -412,6 +575,7 @@ float4 PSContent(PSIn input) : SV_TARGET
 
 	MeshCache* GetMeshLocked(ID3D11Device* device, const HousingRenderer::Instance& inst)
 	{
+		const bool hasLogo = LoadLogoLocked(device, inst.key, inst.params);
 		const std::string signature = Signature(inst);
 		auto& entry = g_meshes[inst.key];
 		if (entry.vb && entry.signature == signature)
@@ -438,6 +602,20 @@ float4 PSContent(PSIn input) : SV_TARGET
 			return nullptr;
 		}
 		entry.vertexCount = static_cast<UINT>(vertices.size());
+		if (hasLogo)
+		{
+			auto logoVertices = BuildLogoMesh(inst, g_logos.at(inst.key));
+			if (!logoVertices.empty())
+			{
+				desc.ByteWidth = static_cast<UINT>(logoVertices.size() * sizeof(Vertex));
+				data.pSysMem = logoVertices.data();
+				if (FAILED(device->CreateBuffer(&desc, &data, &entry.logoVb)))
+				{
+					Logging::Log("HousingRenderer: creating logo vertex buffer failed.");
+				}
+				else entry.logoVertexCount = static_cast<UINT>(logoVertices.size());
+			}
+		}
 		const float w = inst.contentWidthMeters * 0.5f;
 		const float h = inst.contentHeightMeters * 0.5f;
 		const Vertex screen[] = {
@@ -546,6 +724,7 @@ float4 PSContent(PSIn input) : SV_TARGET
 		g_contentPs.Reset();
 		g_contentSampler.Reset();
 		g_contents.clear();
+		g_logos.clear();
 		g_layout.Reset();
 		g_cb.Reset();
 		g_raster.Reset();
@@ -802,6 +981,10 @@ namespace HousingRenderer
 		{
 			it = live.count(it->first) == 0 ? g_contents.erase(it) : std::next(it);
 		}
+		for (auto it = g_logos.begin(); it != g_logos.end();)
+		{
+			it = live.count(it->first) == 0 ? g_logos.erase(it) : std::next(it);
+		}
 	}
 
 	bool RenderEye(
@@ -816,7 +999,8 @@ namespace HousingRenderer
 		const XrVector3f& headPosition,
 		const std::vector<Instance>& instances,
 		const donutz::ProbeLighting& lighting,
-		bool renderContent)
+		bool renderContent,
+		ID3D11Texture2D* depthTarget)
 	{
 		if (device == nullptr || context == nullptr || target == nullptr || width == 0 || height == 0)
 		{
@@ -845,6 +1029,23 @@ namespace HousingRenderer
 				return false;
 			}
 			draws.emplace_back(mesh, &inst);
+		}
+
+		ComPtr<ID3D11DepthStencilView> outputDsv;
+		if (depthTarget != nullptr)
+		{
+			D3D11_TEXTURE2D_DESC depthDesc{};
+			depthTarget->GetDesc(&depthDesc);
+			D3D11_DEPTH_STENCIL_VIEW_DESC dsvDesc{};
+			dsvDesc.Format = DXGI_FORMAT_D32_FLOAT;
+			dsvDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+			if (depthDesc.Width != width || depthDesc.Height != height || depthDesc.SampleDesc.Count != 1 ||
+				depthDesc.ArraySize != 1 || (depthDesc.Format != DXGI_FORMAT_D32_FLOAT && depthDesc.Format != DXGI_FORMAT_R32_TYPELESS) ||
+				FAILED(device->CreateDepthStencilView(depthTarget, &dsvDesc, &outputDsv)))
+			{
+				Logging::Log("HousingRenderer: invalid compositor depth target or DSV creation failed.");
+				return false;
+			}
 		}
 
 		Constants constants{};
@@ -891,10 +1092,12 @@ namespace HousingRenderer
 		context->PSSetSamplers(0, 1, samplers);
 
 		const auto drawScene = [&]() {
-			for (bool content : { false, true })
+			for (int pass = 0; pass < 3; ++pass)
 			{
+				const bool content = pass == 1;
+				const bool logo = pass == 2;
 				if (content && !renderContent) continue;
-				context->PSSetShader(content ? g_contentPs.Get() : g_ps.Get(), nullptr, 0);
+				context->PSSetShader((content || logo) ? g_contentPs.Get() : g_ps.Get(), nullptr, 0);
 				// Shade both passes from the actual eye position so housing reflections,
 				// fresnel and specular highlights shift correctly between the two eyes.
 				const auto& eye = eyePose.position;
@@ -903,9 +1106,10 @@ namespace HousingRenderer
 				constants.eyePos[2] = eye.z;
 				for (const auto& [mesh, inst] : draws)
 				{
+					if (logo && mesh->logoVertexCount == 0) continue;
 					BuildWorld(content ? inst->contentPose : inst->pose, constants.world);
 					constants.misc[1] = inst->leds.brightness;
-					constants.misc[2] = inst->opaqueContent ? 1.0f : 0.0f;
+					constants.misc[2] = content && inst->opaqueContent ? 1.0f : 0.0f;
 					D3D11_MAPPED_SUBRESOURCE mapped{};
 					if (FAILED(context->Map(g_cb.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped)))
 					{
@@ -914,16 +1118,16 @@ namespace HousingRenderer
 					}
 					std::memcpy(mapped.pData, &constants, sizeof(constants));
 					context->Unmap(g_cb.Get(), 0);
-					ID3D11Buffer* vbs[] = { content ? mesh->contentVb.Get() : mesh->vb.Get() };
-					context->IASetVertexBuffers(0, 1, vbs, &stride, &offset);
-					ID3D11ShaderResourceView* srvs[] = { content ? g_contents.at(inst->key).srv.Get() : nullptr };
-					context->PSSetShaderResources(0, 1, srvs);
-					context->Draw(content ? 6 : mesh->vertexCount, 0);
+					ID3D11Buffer* vertexBuffer = logo ? mesh->logoVb.Get() : content ? mesh->contentVb.Get() : mesh->vb.Get();
+					context->IASetVertexBuffers(0, 1, &vertexBuffer, &stride, &offset);
+					ID3D11ShaderResourceView* srv = logo ? g_logos.at(inst->key).srv.Get() : content ? g_contents.at(inst->key).srv.Get() : nullptr;
+					context->PSSetShaderResources(0, 1, &srv);
+					context->Draw(logo ? mesh->logoVertexCount : content ? 6 : mesh->vertexCount, 0);
 				}
 			}
 			return true;
 		};
-		const bool ok = drawScene();
+		bool ok = drawScene();
 		context->OMSetRenderTargets(0, nullptr, nullptr);
 		if (ok)
 		{
@@ -935,6 +1139,34 @@ namespace HousingRenderer
 			}
 			const D3D11_BOX box{ 0, 0, 0, width, height, 1 };
 			context->CopySubresourceRegion(target, 0, 0, 0, 0, rendered, 0, &box);
+		}
+		if (ok && outputDsv)
+		{
+			context->ClearDepthStencilView(outputDsv.Get(), D3D11_CLEAR_DEPTH, 1.0f, 0);
+			context->OMSetRenderTargets(0, nullptr, outputDsv.Get());
+			context->OMSetDepthStencilState(g_depthState.Get(), 0);
+			context->RSSetState(g_raster.Get());
+			context->RSSetViewports(1, &viewport);
+			context->IASetInputLayout(g_layout.Get());
+			context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+			context->VSSetShader(g_vs.Get(), nullptr, 0);
+			context->PSSetShader(nullptr, nullptr, 0);
+			for (const auto& [mesh, inst] : draws)
+			{
+				BuildWorld(inst->pose, constants.world);
+				D3D11_MAPPED_SUBRESOURCE mapped{};
+				if (FAILED(context->Map(g_cb.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped)))
+				{
+					Logging::Log("HousingRenderer: updating compositor depth constants failed.");
+					ok = false;
+					break;
+				}
+				std::memcpy(mapped.pData, &constants, sizeof(constants));
+				context->Unmap(g_cb.Get(), 0);
+				ID3D11Buffer* vertexBuffer = mesh->vb.Get();
+				context->IASetVertexBuffers(0, 1, &vertexBuffer, &stride, &offset);
+				context->Draw(mesh->vertexCount, 0);
+			}
 		}
 		ID3D11ShaderResourceView* nullSrv[] = { nullptr };
 		context->PSSetShaderResources(0, 1, nullSrv);

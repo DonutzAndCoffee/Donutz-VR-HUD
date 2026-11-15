@@ -563,6 +563,7 @@ namespace
 	struct BezelGeometry
 	{
 		float hw, hh;        // display half extents (m)
+		float left, right, bottom, top; // outer bounds relative to display centre (m)
 		float ow, oh;        // outer half extents (m)
 		float radius;        // outer corner radius (m)
 		float outerBevel;    // outer bevel width (m)
@@ -627,12 +628,21 @@ namespace
 		float distance;   // head centre to quad centre (m)
 	};
 
-	// Stereo 3D housing: a square through the housing centre that faces the
-	// head and contains housing and dashboard as seen from both eyes. Fails
-	// when the viewer is too close to render the housing onto such a quad.
-	bool BuildHousingBillboard(const HousingRenderer::Instance& inst, const XrVector3f eyes[2], HousingBillboard& out)
+	// Stereo 3D housing: a square through the housing that contains housing and
+	// dashboard as seen from both eyes. Fails when the viewer is too close.
+	// Head-facing (recommended): through the housing centre, facing the head.
+	// displayPlane (experimental): lies in the display surface, so the dashboard
+	// is exact for any eye position; it tilts towards the head only beyond 60
+	// degrees to keep oblique and rear views renderable. extraPoints (up to two)
+	// are included in the quad's bounds.
+	bool BuildHousingBillboard(const HousingRenderer::Instance& inst, const XrVector3f eyes[2], bool displayPlane,
+		const XrVector3f* extraPoints, size_t extraCount, HousingBillboard& out)
 	{
-		const float bezel = std::clamp(inst.params.bezelWidthMm, 1.0f, 100.0f) * 0.001f;
+		const float bezelTop = std::clamp(inst.params.bezelTopMm, 0.0f, 100.0f) * 0.001f;
+		const float bezelBottom = std::clamp(inst.params.bezelBottomMm, 0.0f, 100.0f) * 0.001f;
+		const float bezelLeft = std::clamp(inst.params.bezelLeftMm, 0.0f, 100.0f) * 0.001f;
+		const float bezelRight = std::clamp(inst.params.bezelRightMm, 0.0f, 100.0f) * 0.001f;
+		const float bezel = (std::max)({ bezelTop, bezelBottom, bezelLeft, bezelRight });
 		const float depth = std::clamp(inst.params.depthMm, 2.0f, 200.0f) * 0.001f;
 		constexpr float kFront = 0.006f; // LED lenses stand slightly proud of the bezel
 		const float hx = inst.widthMeters * 0.5f + bezel;
@@ -643,7 +653,8 @@ namespace
 			const XrVector3f r = QuatRotateVector(pose.orientation, local);
 			return XrVector3f{ pose.position.x + r.x, pose.position.y + r.y, pose.position.z + r.z };
 		};
-		XrVector3f points[12];
+		XrVector3f points[14];
+		size_t pointCount = 12;
 		for (int i = 0; i < 8; ++i)
 		{
 			points[i] = place(inst.pose, { (i & 1) ? hx : -hx, (i & 2) ? hy : -hy, (i & 4) ? kFront : -depth });
@@ -652,11 +663,16 @@ namespace
 		{
 			points[8 + i] = place(inst.contentPose, { (i & 1) ? cw : -cw, (i & 2) ? ch : -ch, 0.0f });
 		}
-		const XrVector3f centre = place(inst.pose, { 0.0f, 0.0f, (kFront - depth) * 0.5f });
-		float radius = 0.0f;
-		for (const auto& point : points)
+		for (size_t i = 0; extraPoints != nullptr && i < extraCount && i < 2; ++i)
 		{
-			const XrVector3f d = SubVec(point, centre);
+			points[pointCount++] = extraPoints[i];
+		}
+		const float recess = std::clamp(inst.params.displayRecessMm, 0.0f, 20.0f) * 0.001f;
+		const XrVector3f centre = place(inst.pose, { 0.0f, 0.0f, displayPlane ? -recess : (kFront - depth) * 0.5f });
+		float radius = 0.0f;
+		for (size_t i = 0; i < pointCount; ++i)
+		{
+			const XrVector3f d = SubVec(points[i], centre);
 			radius = (std::max)(radius, sqrtf(DotVec(d, d)));
 		}
 
@@ -667,7 +683,25 @@ namespace
 		{
 			return false;
 		}
-		const XrVector3f normal{ toHead.x / distance, toHead.y / distance, toHead.z / distance };
+		XrVector3f normal{ toHead.x / distance, toHead.y / distance, toHead.z / distance };
+		if (displayPlane)
+		{
+			constexpr float kCosLimit = 0.5f, kSinLimit = 0.8660254f;
+			const XrVector3f display = QuatRotateVector(inst.pose.orientation, { 0.0f, 0.0f, 1.0f });
+			const float c = DotVec(display, normal);
+			const XrVector3f tangent{ display.x - normal.x * c, display.y - normal.y * c, display.z - normal.z * c };
+			const float length = sqrtf(DotVec(tangent, tangent));
+			if (c >= kCosLimit)
+			{
+				normal = display;
+			}
+			else if (length > 0.0001f)
+			{
+				normal = { normal.x * kCosLimit + tangent.x / length * kSinLimit,
+					normal.y * kCosLimit + tangent.y / length * kSinLimit,
+					normal.z * kCosLimit + tangent.z / length * kSinLimit };
+			}
+		}
 		XrVector3f upReference = QuatRotateVector(inst.pose.orientation, { 0.0f, 1.0f, 0.0f });
 		if (fabsf(DotVec(upReference, normal)) > 0.9f)
 		{
@@ -684,10 +718,14 @@ namespace
 			ex[v] = DotVec(eye, right);
 			ey[v] = DotVec(eye, up);
 			ez[v] = DotVec(eye, normal);
-			const float minAlong = (std::max)(HousingRenderer::kNearZ + 0.01f, ez[v] * 0.25f);
-			for (const auto& point : points)
+			if (displayPlane && ez[v] < 0.03f)
 			{
-				const XrVector3f rel = SubVec(point, eyes[v]);
+				return false;
+			}
+			const float minAlong = (std::max)(HousingRenderer::kNearZ + 0.01f, ez[v] * 0.25f);
+			for (size_t i = 0; i < pointCount; ++i)
+			{
+				const XrVector3f rel = SubVec(points[i], eyes[v]);
 				const float along = -DotVec(rel, normal);
 				if (along < minAlong)
 				{
@@ -709,6 +747,39 @@ namespace
 				atanf((half - ey[v]) / ez[v]), atanf((-half - ey[v]) / ez[v]) };
 		}
 		return true;
+	}
+
+	// Diagnostic for the experimental housing mode: a red (left eye) or green
+	// (right eye) square centred on the given texel of an eye image.
+	void DrawEyeTestMarker(ID3D11Texture2D* target, int64_t format, int32_t size, uint32_t eye,
+		float centreX, float centreY, float edgePixels)
+	{
+		if (g_d3dDevice == nullptr || g_d3dContext == nullptr || target == nullptr || size < 64)
+		{
+			return;
+		}
+		const UINT edge = static_cast<UINT>(std::clamp(edgePixels, 8.0f, size * 0.25f));
+		const UINT x = static_cast<UINT>(std::clamp(centreX - edge * 0.5f, 0.0f, static_cast<float>(size - static_cast<int32_t>(edge))));
+		const UINT y = static_cast<UINT>(std::clamp(centreY - edge * 0.5f, 0.0f, static_cast<float>(size - static_cast<int32_t>(edge))));
+		const bool bgra = format == DXGI_FORMAT_B8G8R8A8_UNORM || format == DXGI_FORMAT_B8G8R8A8_UNORM_SRGB;
+		const uint8_t red[4] = { static_cast<uint8_t>(bgra ? 0 : 255), 0, static_cast<uint8_t>(bgra ? 255 : 0), 255 };
+		const uint8_t green[4] = { 0, 255, 0, 255 };
+		uint32_t texel = 0;
+		std::memcpy(&texel, eye == 0 ? red : green, sizeof(texel));
+		const std::vector<uint32_t> pixels(static_cast<size_t>(edge) * edge, texel);
+		D3D11_TEXTURE2D_DESC desc{};
+		desc.Width = desc.Height = edge;
+		desc.MipLevels = desc.ArraySize = 1;
+		desc.Format = static_cast<DXGI_FORMAT>(format);
+		desc.SampleDesc.Count = 1;
+		desc.Usage = D3D11_USAGE_IMMUTABLE;
+		desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+		const D3D11_SUBRESOURCE_DATA data{ pixels.data(), edge * 4, 0 };
+		Microsoft::WRL::ComPtr<ID3D11Texture2D> marker;
+		if (SUCCEEDED(g_d3dDevice->CreateTexture2D(&desc, &data, &marker)))
+		{
+			g_d3dContext->CopySubresourceRegion(target, 0, x, y, 0, marker.Get(), 0, nullptr);
+		}
 	}
 
 	// Hemisphere ambient + environment reflection from the image light probe
@@ -794,17 +865,21 @@ namespace
 		}
 
 		const float pixel = (std::min)(2.0f * g.ow / width, 2.0f * g.oh / height);
+		const float centerX = (g.left + g.right) * 0.5f;
+		const float centerY = (g.bottom + g.top) * 0.5f;
+		const float outerHalfW = (g.right - g.left) * 0.5f;
+		const float outerHalfH = (g.top - g.bottom) * 0.5f;
 		auto* rowBase = static_cast<uint8_t*>(mapped.pData);
 		for (int32_t py = 0; py < height; ++py)
 		{
 			uint8_t* row = rowBase + static_cast<size_t>(py) * mapped.RowPitch;
-			const float y = (0.5f - (py + 0.5f) / height) * 2.0f * g.oh;
-			const float ay = fabsf(y);
+			const float y = centerY + (0.5f - (py + 0.5f) / height) * 2.0f * g.oh;
+			const float ay = fabsf(y - centerY);
 			for (int32_t px = 0; px < width; ++px)
 			{
 				uint8_t* out = row + static_cast<size_t>(px) * 4;
-				const float x = ((px + 0.5f) / width - 0.5f) * 2.0f * g.ow;
-				const float ax = fabsf(x);
+				const float x = centerX + ((px + 0.5f) / width - 0.5f) * 2.0f * g.ow;
+				const float ax = fabsf(x - centerX);
 
 				// Display opening.
 				if (ax < g.hw && ay < g.hh)
@@ -814,12 +889,12 @@ namespace
 				}
 
 				// Rounded-rectangle signed distance to the outer edge.
-				const float qx = ax - (g.ow - g.radius);
-				const float qy = ay - (g.oh - g.radius);
+				const float qx = ax - (outerHalfW - g.radius);
+				const float qy = ay - (outerHalfH - g.radius);
 				const float mx = (std::max)(qx, 0.0f);
 				const float my = (std::max)(qy, 0.0f);
 				(void)mx; (void)my; // 45 deg chamfer matching the side-shell corner strip
-				const float d = (std::max)({ ax - g.ow, ay - g.oh, (qx + qy) * 0.70710678f - g.radius });
+				const float d = (std::max)({ ax - outerHalfW, ay - outerHalfH, (qx + qy) * 0.70710678f - g.radius });
 				const float alpha = std::clamp(1.5f - d / pixel, 0.0f, 1.0f); // opaque up to the edge, overlaps the walls
 				if (alpha <= 0.0f)
 				{
@@ -900,7 +975,8 @@ namespace
 				mix(q8(shading.inner[side][i]));
 			}
 		}
-		const float geo[7] = { geometry.hw, geometry.hh, geometry.ow, geometry.oh, geometry.radius, geometry.outerBevel, geometry.innerBevel };
+		const float geo[11] = { geometry.hw, geometry.hh, geometry.left, geometry.right, geometry.bottom, geometry.top,
+			geometry.ow, geometry.oh, geometry.radius, geometry.outerBevel, geometry.innerBevel };
 		for (float f : geo)
 		{
 			mix(static_cast<uint32_t>(f * 100000.0f));
@@ -1120,11 +1196,21 @@ namespace
     {
         const float hw = width * 0.5f;
         const float hh = height * 0.5f;
-        const float bezel = std::clamp(p.bezelWidthMm, 1.0f, 100.0f) * 0.001f;
+        const float bezelTop = std::clamp(p.bezelTopMm, 0.0f, 100.0f) * 0.001f;
+        const float bezelBottom = std::clamp(p.bezelBottomMm, 0.0f, 100.0f) * 0.001f;
+        const float bezelLeft = std::clamp(p.bezelLeftMm, 0.0f, 100.0f) * 0.001f;
+        const float bezelRight = std::clamp(p.bezelRightMm, 0.0f, 100.0f) * 0.001f;
+        const float bezel = (std::max)({ bezelTop, bezelBottom, bezelLeft, bezelRight });
         const float depth = std::clamp(p.depthMm, 2.0f, 200.0f) * 0.001f;
         const float recess = std::clamp(p.displayRecessMm, 0.0f, 20.0f) * 0.001f;
-        const float ow = hw + bezel;
-        const float oh = hh + bezel;
+        const float left = -hw - bezelLeft;
+        const float right = hw + bezelRight;
+        const float bottom = -hh - bezelBottom;
+        const float top = hh + bezelTop;
+        const float centerX = (left + right) * 0.5f;
+        const float centerY = (bottom + top) * 0.5f;
+        const float ow = (right - left) * 0.5f;
+        const float oh = (top - bottom) * 0.5f;
         // Limited so the corner never cuts into the display backing below.
         const float radius = std::clamp(p.cornerRadiusMm * 0.001f, 0.0f, (std::min)({ bezel * 1.5f, ow, oh }));
 
@@ -1201,10 +1287,10 @@ namespace
                 face(shell, name, center, rot, w, h, normal, false);
             }
         };
-        wall("outer_top", { 0.0f, oh, wallZ }, faceUp, wallW, wallLen, { 0.0f, 1.0f, 0.0f });
-        wall("outer_bottom", { 0.0f, -oh, wallZ }, faceDown, wallW, wallLen, { 0.0f, -1.0f, 0.0f });
-        wall("outer_left", { -ow, 0.0f, wallZ }, faceLeft, wallLen, wallH, { -1.0f, 0.0f, 0.0f });
-        wall("outer_right", { ow, 0.0f, wallZ }, faceRight, wallLen, wallH, { 1.0f, 0.0f, 0.0f });
+        wall("outer_top", { centerX, top, wallZ }, faceUp, wallW, wallLen, { 0.0f, 1.0f, 0.0f });
+        wall("outer_bottom", { centerX, bottom, wallZ }, faceDown, wallW, wallLen, { 0.0f, -1.0f, 0.0f });
+        wall("outer_left", { left, centerY, wallZ }, faceLeft, wallLen, wallH, { -1.0f, 0.0f, 0.0f });
+        wall("outer_right", { right, centerY, wallZ }, faceRight, wallLen, wallH, { 1.0f, 0.0f, 0.0f });
 
         // Rounded corners of the side shell, approximated by narrow strips.
         if (radius > 0.0005f)
@@ -1214,11 +1300,12 @@ namespace
             const float delta = kHalfPi / kCornerSegments;
             const float chord = 2.0f * radius * kCornerTan * 1.12f;
             const float inset = radius;
-            const float signs[4][2] = { { 1.0f, 1.0f }, { -1.0f, 1.0f }, { -1.0f, -1.0f }, { 1.0f, -1.0f } };
+            const float cornerX[4] = { right - radius, left + radius, left + radius, right - radius };
+            const float cornerY[4] = { top - radius, top - radius, bottom + radius, bottom + radius };
             for (int corner = 0; corner < 4; ++corner)
             {
-                const float cx = signs[corner][0] * (ow - radius);
-                const float cy = signs[corner][1] * (oh - radius);
+                const float cx = cornerX[corner];
+                const float cy = cornerY[corner];
                 for (int seg = 0; seg < kCornerSegments; ++seg)
                 {
                     const float angle = corner * kHalfPi + (seg + 0.5f) * delta;
@@ -1268,12 +1355,16 @@ namespace
         if (viewerBehind)
         {
             BezelGeometry backGeometry{};
+            backGeometry.left = left;
+            backGeometry.right = right;
+            backGeometry.bottom = bottom;
+            backGeometry.top = top;
             backGeometry.ow = ow;
             backGeometry.oh = oh;
             backGeometry.radius = radius;
             backGeometry.outerBevel = (std::max)((std::min)(bezel * 0.35f, 0.003f), 0.0005f);
             backGeometry.innerBevel = 0.0003f;
-            const XrVector3f backCenter{ 0.0f, 0.0f, -depth };
+            const XrVector3f backCenter{ centerX, centerY, -depth };
             const ControllerInput::VisualColor c = ShadeHousingSurface(p, lighting, pose.orientation, { 0.0f, 0.0f, -1.0f }, eyeLocal, backCenter);
             BezelShading backShading{};
             const float rgb[3] = { c.r, c.g, c.b };
@@ -1309,20 +1400,24 @@ namespace
 		// Switched-off display backing sits just behind the recessed content
 		// plane and reaches halfway under the bezel to close the recess edges.
 		constexpr float kBackingOffsetMeters = 0.0005f;
-		face(back, "screen", { 0.0f, 0.0f, -recess - kBackingOffsetMeters }, identity, 2.0f * hw + bezel, 2.0f * hh + bezel, { 0.0f, 0.0f, 1.0f }, true);
+		face(back, "screen", { centerX, centerY, -recess - kBackingOffsetMeters }, identity, 2.0f * ow, 2.0f * oh, { 0.0f, 0.0f, 1.0f }, true);
 
 		// The bezel is drawn on the housing front plane, per-pixel shaded
 		// (bevels, gradient, highlight) with rounded outer corners.
 		BezelGeometry geometry{};
 		geometry.hw = hw;
 		geometry.hh = hh;
+		geometry.left = left;
+		geometry.right = right;
+		geometry.bottom = bottom;
+		geometry.top = top;
 		geometry.ow = ow;
 		geometry.oh = oh;
 		geometry.radius = radius;
 		geometry.outerBevel = (std::max)((std::min)(bezel * 0.35f, 0.003f), 0.0005f);
 		geometry.innerBevel = (std::max)((std::min)(bezel * 0.2f, 0.0015f), 0.0003f);
 
-		const XrVector3f faceCenter{ 0.0f, 0.0f, 0.0f };
+		const XrVector3f faceCenter{ centerX, centerY, 0.0f };
 		auto shade = [&](const XrVector3f& normal, float* out)
 		{
 			const ControllerInput::VisualColor c = ShadeHousingSurface(p, lighting, pose.orientation, normal, eyeLocal, faceCenter);
@@ -1749,10 +1844,12 @@ namespace
         // Storage for the quads and their referenced sub-images must outlive
         // the xrEndFrame call below.
         std::vector<XrCompositionLayerQuad> quads;
+        std::vector<XrCompositionLayerQuad> editHelperQuads;
         std::vector<XrCompositionLayerQuad> decorativeQuads;
         std::vector<XrCompositionLayerQuad> controllerQuads;
         std::vector<const XrCompositionLayerBaseHeader*> combinedLayers;
         quads.reserve(panels.size());
+        editHelperQuads.reserve(2);
         decorativeQuads.reserve(panels.size() * 14);
         controllerQuads.reserve(8);
         bool anyHousedPanel = false;
@@ -1786,6 +1883,7 @@ namespace
         };
         std::vector<MeshHousing> meshHousings;
         std::vector<MeshHousing> stableHousings;
+        std::vector<MeshHousing> projectionHousings;
 
         for (const auto& panel : panels)
         {
@@ -1823,7 +1921,9 @@ namespace
             {
                 ContentBounds::Update(key, g_d3dDevice, g_d3dContext, panelSwapchain->images[imageIndex]);
             }
-            const bool meshContentReady = panel.hasHousing && panel.housing.renderMode == 2 &&
+            const bool stereoQuadMode = panel.housing.renderMode == 2 || panel.housing.renderMode == 4 ||
+                panel.housing.renderMode == 5;
+            const bool meshContentReady = panel.hasHousing && stereoQuadMode &&
                 HousingRenderer::UpdateContent(g_d3dDevice, g_d3dContext, key, panelSwapchain->images[imageIndex]);
 
             XrSwapchainImageReleaseInfo releaseInfo{ XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO };
@@ -1933,7 +2033,8 @@ namespace
                 recessedQuad.pose.position = { quad.pose.position.x + recessOffset.x,
                     quad.pose.position.y + recessOffset.y, quad.pose.position.z + recessOffset.z };
 
-                if ((panel.housing.renderMode == 1 || (panel.housing.renderMode == 2 && meshContentReady)) &&
+                if ((panel.housing.renderMode == 1 || panel.housing.renderMode == 3 ||
+                    (stereoQuadMode && meshContentReady)) &&
                     g_d3dDevice != nullptr && g_d3dContext != nullptr)
                 {
                     MeshHousing mesh{};
@@ -1955,6 +2056,11 @@ namespace
                     if (panel.housing.renderMode == 1)
                     {
                         stableHousings.push_back(std::move(mesh));
+                        quads.push_back(recessedQuad);
+                    }
+                    else if (panel.housing.renderMode == 3)
+                    {
+                        projectionHousings.push_back(std::move(mesh));
                         quads.push_back(recessedQuad);
                     }
                     else
@@ -1990,7 +2096,10 @@ namespace
                 continue;
             }
 
-            quads.push_back(quad);
+            if (panel.nonInteractive)
+                editHelperQuads.push_back(quad);
+            else
+                quads.push_back(quad);
         }
 
         // Controller marker + laser visualization quads (see
@@ -2255,6 +2364,12 @@ namespace
 			stableGroups[mesh.space].push_back(&mesh);
 			meshKeys.push_back(mesh.instance.key);
 		}
+		std::map<XrSpace, std::vector<const MeshHousing*>> projectionGroups;
+		for (const auto& mesh : projectionHousings)
+		{
+			projectionGroups[mesh.space].push_back(&mesh);
+			meshKeys.push_back(mesh.instance.key);
+		}
 		HousingRenderer::PruneMeshes(meshKeys);
 		PFN_xrLocateViews locateViews;
 		{
@@ -2291,7 +2406,8 @@ namespace
 					return QuatRotateVector(inverse, XrVector3f{ p.x - inst.pose.position.x,
 						p.y - inst.pose.position.y, p.z - inst.pose.position.z });
 				};
-				const float bezel = std::clamp(inst.params.bezelWidthMm, 1.0f, 100.0f) * 0.001f;
+				const float bezel = (std::max)({ inst.params.bezelTopMm, inst.params.bezelBottomMm,
+					inst.params.bezelLeftMm, inst.params.bezelRightMm }) * 0.001f;
 				const float depth = std::clamp(inst.params.depthMm, 2.0f, 200.0f) * 0.001f;
 				const float margin = bezel + depth * 1.5f;
 				const float quadW = inst.widthMeters + 2.0f * margin;
@@ -2372,6 +2488,166 @@ namespace
 				}
 			}
 		}
+
+		// Render true stereo housing geometry from the runtime's current eye poses,
+		// the same source the quad modes use. The host's submitted poses are older
+		// and did not line up with the separately composed dashboard quad.
+		struct ProjectionHousingScene
+		{
+			XrCompositionLayerProjection layer{ XR_TYPE_COMPOSITION_LAYER_PROJECTION };
+			XrCompositionLayerProjectionView views[2]{};
+			XrCompositionLayerDepthInfoKHR depth[2]{};
+		};
+		std::vector<ProjectionHousingScene> projectionScenes;
+		projectionScenes.reserve(projectionGroups.size());
+		const XrCompositionLayerProjection* appProjection = nullptr;
+		for (uint32_t i = 0; i < frameEndInfo->layerCount; ++i)
+		{
+			const auto* layer = frameEndInfo->layers[i];
+			if (layer != nullptr && layer->type == XR_TYPE_COMPOSITION_LAYER_PROJECTION)
+			{
+				appProjection = reinterpret_cast<const XrCompositionLayerProjection*>(layer);
+				break;
+			}
+		}
+		PFN_xrLocateSpace locateProjectionSpace;
+		{
+			std::lock_guard<std::mutex> lock(g_mutex);
+			locateProjectionSpace = g_next.xrLocateSpace;
+		}
+		for (const auto& [space, meshes] : projectionGroups)
+		{
+			projectionScenes.emplace_back();
+			auto& scene = projectionScenes.back();
+			XrView eyeViews[2]{ { XR_TYPE_VIEW }, { XR_TYPE_VIEW } };
+			// The host projection only supplies the per-eye render resolution.
+			bool ok = appProjection != nullptr && appProjection->views != nullptr &&
+				appProjection->viewCount >= 2 && g_d3dDevice != nullptr && g_d3dContext != nullptr &&
+				locateEyes(space, eyeViews);
+			std::vector<HousingRenderer::Instance> instances;
+			instances.reserve(meshes.size());
+			for (const auto* mesh : meshes) instances.push_back(mesh->instance);
+			if (ok)
+			{
+				const XrVector3f& left = eyeViews[0].pose.position;
+				const XrVector3f& right = eyeViews[1].pose.position;
+				const XrVector3f headCentre{ (left.x + right.x) * 0.5f, (left.y + right.y) * 0.5f, (left.z + right.z) * 0.5f };
+				if ((s_frameLogCounter % 600) == 1)
+				{
+					// Diagnostic: how far the host's submitted left eye is from the runtime's.
+					XrPosef appToSpace{ { 0.0f, 0.0f, 0.0f, 1.0f }, {} };
+					bool located = appProjection->space == space;
+					if (!located && locateProjectionSpace != nullptr)
+					{
+						XrSpaceLocation location{ XR_TYPE_SPACE_LOCATION };
+						constexpr XrSpaceLocationFlags required = XR_SPACE_LOCATION_POSITION_VALID_BIT |
+							XR_SPACE_LOCATION_ORIENTATION_VALID_BIT;
+						located = XR_SUCCEEDED(locateProjectionSpace(appProjection->space, space, frameEndInfo->displayTime, &location)) &&
+							(location.locationFlags & required) == required;
+						if (located) appToSpace = location.pose;
+					}
+					if (located)
+					{
+						const XrVector3f host = QuatRotateVector(appToSpace.orientation, appProjection->views[0].pose.position);
+						Logging::Log("Hook_xrEndFrame: projection housing eye-pose check, host-submitted minus runtime left eye = (" +
+							std::to_string(appToSpace.position.x + host.x - left.x) + ", " +
+							std::to_string(appToSpace.position.y + host.y - left.y) + ", " +
+							std::to_string(appToSpace.position.z + host.z - left.z) + ") m.");
+					}
+					else
+					{
+						Logging::Log("Hook_xrEndFrame: projection housing eye-pose check skipped (host space could not be located).");
+					}
+				}
+				bool useDepth = g_depthLayerSupported.load();
+				for (uint32_t v = 0; ok && v < 2; ++v)
+				{
+					const auto& appView = appProjection->views[v];
+					auto& view = scene.views[v];
+					view = XrCompositionLayerProjectionView{ XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW };
+					view.pose = eyeViews[v].pose;
+					view.fov = eyeViews[v].fov;
+					const int32_t sourceWidth = appView.subImage.imageRect.extent.width;
+					const int32_t sourceHeight = appView.subImage.imageRect.extent.height;
+					if (sourceWidth <= 0 || sourceHeight <= 0)
+					{
+						ok = false;
+						break;
+					}
+					float scale = 1.0f;
+					for (const auto* mesh : meshes)
+						scale = (std::min)(scale, std::clamp(mesh->instance.params.renderScale, 0.5f, 1.0f));
+					const int32_t width = std::clamp(static_cast<int32_t>(sourceWidth * scale), 64, 4096);
+					const int32_t height = std::clamp(static_cast<int32_t>(sourceHeight * scale), 64, 4096);
+					const std::string swapchainKey = "housing_projection_" +
+						std::to_string(reinterpret_cast<uintptr_t>(space)) + "_view_" + std::to_string(v);
+					PanelSwapchain* color = EnsurePanelSwapchain(session, swapchainKey, width, height);
+					PanelSwapchain* depth = useDepth
+						? EnsurePanelSwapchain(session, swapchainKey + "_depth", width, height, DXGI_FORMAT_D32_FLOAT)
+						: nullptr;
+					if (useDepth && (depth == nullptr || depth->images.empty()))
+					{
+						useDepth = false;
+						for (uint32_t previousView = 0; previousView < v; ++previousView)
+							scene.views[previousView].next = nullptr;
+						if ((s_frameLogCounter % 90) == 1)
+							Logging::Log("Hook_xrEndFrame: depth swapchain unavailable; rendering stereo housing without depth.");
+					}
+					if (color == nullptr || color->images.empty())
+					{
+						ok = false;
+						break;
+					}
+					uint32_t imageIndex = 0;
+					uint32_t depthIndex = 0;
+					const bool colorAcquired = acquireImage(color->swapchain, nullptr, &imageIndex) == XR_SUCCESS;
+					bool depthAcquired = false;
+					if (colorAcquired && useDepth)
+						depthAcquired = acquireImage(depth->swapchain, nullptr, &depthIndex) == XR_SUCCESS;
+					XrSwapchainImageWaitInfo waitInfo{ XR_TYPE_SWAPCHAIN_IMAGE_WAIT_INFO };
+					waitInfo.timeout = XR_INFINITE_DURATION;
+					const bool colorReady = colorAcquired && waitImage(color->swapchain, &waitInfo) == XR_SUCCESS;
+					const bool depthReady = !useDepth || (depthAcquired && waitImage(depth->swapchain, &waitInfo) == XR_SUCCESS);
+					ok = colorReady && depthReady && imageIndex < color->images.size() &&
+						(!useDepth || depthIndex < depth->images.size()) && HousingRenderer::RenderEye(
+						g_d3dDevice, g_d3dContext, color->images[imageIndex], static_cast<DXGI_FORMAT>(color->format),
+						static_cast<uint32_t>(width), static_cast<uint32_t>(height), view.pose, view.fov, headCentre,
+						instances, housingLighting, false, useDepth ? depth->images[depthIndex] : nullptr);
+					XrSwapchainImageReleaseInfo releaseInfo{ XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO };
+					if (colorAcquired) ok = (releaseImage(color->swapchain, &releaseInfo) == XR_SUCCESS) && ok;
+					if (depthAcquired) ok = (releaseImage(depth->swapchain, &releaseInfo) == XR_SUCCESS) && ok;
+					view.subImage.swapchain = color->swapchain;
+					view.subImage.imageRect.extent = { width, height };
+					if (useDepth)
+					{
+						auto& depthInfo = scene.depth[v];
+						depthInfo = XrCompositionLayerDepthInfoKHR{ XR_TYPE_COMPOSITION_LAYER_DEPTH_INFO_KHR };
+						depthInfo.subImage.swapchain = depth->swapchain;
+						depthInfo.subImage.imageRect.extent = { width, height };
+						depthInfo.subImage.imageRect.offset = { 0, 0 };
+						depthInfo.minDepth = 0.0f;
+						depthInfo.maxDepth = 1.0f;
+						depthInfo.nearZ = HousingRenderer::kNearZ;
+						depthInfo.farZ = HousingRenderer::kFarZ;
+						view.next = &depthInfo;
+					}
+				}
+			}
+			if (ok)
+			{
+				scene.layer.layerFlags = XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT;
+				scene.layer.space = space;
+				scene.layer.viewCount = 2;
+				scene.layer.views = scene.views;
+			}
+			else
+			{
+				projectionScenes.pop_back();
+				if ((s_frameLogCounter % 90) == 1)
+					Logging::Log("Hook_xrEndFrame: stereo projection housing unavailable; the separate dashboard remains visible.");
+			}
+		}
+
 		// Stereo 3D housings: housing and dashboard are rendered together per
 		// eye, but shown on a head-facing quad instead of a projection layer.
 		// The compositor re-places quads with the latest head pose in all six
@@ -2392,11 +2668,46 @@ namespace
 			const XrVector3f eyes[2]{ views[0].pose.position, views[1].pose.position };
 			const XrVector3f headCentre{ (eyes[0].x + eyes[1].x) * 0.5f,
 				(eyes[0].y + eyes[1].y) * 0.5f, (eyes[0].z + eyes[1].z) * 0.5f };
+			if (viewsValid && (s_frameLogCounter % 300) == 1)
+			{
+				// Diagnostic only: these positions do not establish the runtime's world scale.
+				XrSpaceLocation location{ XR_TYPE_SPACE_LOCATION };
+				const bool located = locateProjectionSpace != nullptr && viewSpace != XR_NULL_HANDLE &&
+					XR_SUCCEEDED(locateProjectionSpace(viewSpace, space, frameEndInfo->displayTime, &location)) &&
+					(location.locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) != 0;
+				const XrVector3f between = SubVec(eyes[1], eyes[0]);
+				Logging::Log("Hook_xrEndFrame: stereo eye check: eye distance=" + std::to_string(sqrtf(DotVec(between, between))) +
+					" m, eye midpoint=(" + std::to_string(headCentre.x) + ", " + std::to_string(headCentre.y) + ", " +
+					std::to_string(headCentre.z) + "), view space origin=" + (located
+						? "(" + std::to_string(location.pose.position.x) + ", " + std::to_string(location.pose.position.y) + ", " +
+							std::to_string(location.pose.position.z) + ")"
+						: std::string("unavailable")) + ".");
+			}
 			for (const auto* mesh : meshes)
 			{
 				const auto& inst = mesh->instance;
 				HousingBillboard board{};
-				bool ok = viewsValid && BuildHousingBillboard(inst, eyes, board);
+				const uint8_t mode = inst.params.renderMode;
+				// Experimental depth check above the housing. probes[0], 100 mm in front of
+				// the display plane, is drawn into both eye images and marked by a white
+				// compositor quad at its true position. probes[1], 100 mm behind the plane,
+				// only gets a white quad: it shows whether the runtime hides layers that
+				// lie behind the eye quads instead of using submission order.
+				constexpr float kProbeMarkerMeters = 0.03f, kProbeReferenceMeters = 0.01f;
+				XrVector3f probes[2]{};
+				if (mode == 5)
+				{
+					const float recess = std::clamp(inst.params.displayRecessMm, 0.0f, 20.0f) * 0.001f;
+					for (int i = 0; i < 2; ++i)
+					{
+						const XrVector3f local = QuatRotateVector(inst.pose.orientation, XrVector3f{
+							inst.widthMeters * (i == 0 ? -0.25f : 0.25f), inst.heightMeters * 0.5f + 0.06f,
+							-recess + (i == 0 ? 0.1f : -0.1f) });
+						probes[i] = { inst.pose.position.x + local.x, inst.pose.position.y + local.y, inst.pose.position.z + local.z };
+					}
+				}
+				bool ok = viewsValid && BuildHousingBillboard(inst, eyes, mode == 4 || mode == 5,
+					probes, mode == 5 ? 2 : 0, board);
 				// Sized from the housing alone, so head movement never recreates the swapchains.
 				const float scale = std::clamp(inst.params.renderScale, 0.5f, 1.0f);
 				const int32_t pixels = (static_cast<int32_t>(
@@ -2426,6 +2737,21 @@ namespace
 						g_d3dDevice, g_d3dContext, color->images[index], static_cast<DXGI_FORMAT>(color->format),
 						pixels, pixels, XrPosef{ board.pose.orientation, eyes[v] }, board.fov[v], headCentre,
 						single, housingLighting);
+					if (ok && mode == 5)
+					{
+						const XrVector3f right = QuatRotateVector(board.pose.orientation, XrVector3f{ 1.0f, 0.0f, 0.0f });
+						const XrVector3f up = QuatRotateVector(board.pose.orientation, XrVector3f{ 0.0f, 1.0f, 0.0f });
+						const XrVector3f normal = QuatRotateVector(board.pose.orientation, XrVector3f{ 0.0f, 0.0f, 1.0f });
+						const XrVector3f e = SubVec(eyes[v], board.pose.position);
+						const XrVector3f p = SubVec(probes[0], board.pose.position);
+						const float ez = DotVec(e, normal);
+						const float t = ez / (ez - DotVec(p, normal));
+						const float qx = DotVec(e, right) + (DotVec(p, right) - DotVec(e, right)) * t;
+						const float qy = DotVec(e, up) + (DotVec(p, up) - DotVec(e, up)) * t;
+						DrawEyeTestMarker(color->images[index], color->format, pixels, v,
+							(qx / board.size + 0.5f) * pixels, (0.5f - qy / board.size) * pixels,
+							kProbeMarkerMeters / board.size * pixels);
+					}
 					if (ready)
 					{
 						XrSwapchainImageReleaseInfo releaseInfo{ XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO };
@@ -2440,6 +2766,24 @@ namespace
 					q.subImage.imageRect.extent = { pixels, pixels };
 					q.pose = board.pose;
 					q.size = { board.size, board.size };
+				}
+				if (ok && mode == 5)
+				{
+					// Ground truth for the probes: real compositor quads at their 3D positions.
+					if (PanelSwapchain* white = EnsureVisualSwapchain(session, inst.key + "_depthReference", ControllerInput::VisualColor{}))
+					{
+						for (const auto& probe : probes)
+						{
+							XrCompositionLayerQuad reference{ XR_TYPE_COMPOSITION_LAYER_QUAD };
+							reference.space = space;
+							reference.eyeVisibility = XR_EYE_VISIBILITY_BOTH;
+							reference.subImage.swapchain = white->swapchain;
+							reference.subImage.imageRect.extent = { white->width, white->height };
+							reference.pose = { inst.pose.orientation, probe };
+							reference.size = { kProbeReferenceMeters, kProbeReferenceMeters };
+							editHelperQuads.push_back(reference);
+						}
+					}
 				}
 				if (ok)
 				{
@@ -2460,7 +2804,7 @@ namespace
 		if (housingState != lastHousingState || (!housingGroups.empty() && (s_frameLogCounter % 600) == 1))
 		{
 			if (housingState == 1)
-				Logging::Log("Hook_xrEndFrame: stereo housings submitted as head-facing eye quads (count=" + std::to_string(stereoHousings.size()) + ").");
+				Logging::Log("Hook_xrEndFrame: stereo housings submitted as per-eye quads (count=" + std::to_string(stereoHousings.size()) + ").");
 			else if (housingState == 0)
 				Logging::Log("Hook_xrEndFrame: stereo housing unavailable (views/swapchain/render failure or viewer too close); showing affected dashboards as quads only.");
 			lastHousingState = housingState;
@@ -2502,28 +2846,31 @@ namespace
             remaining -= count;
             return count;
         };
-        // A stereo housing takes two layers (one per eye). Dashboards and
-        // controllers come first; a housing that does not fit (farthest
-        // first) keeps its dashboard as a plain quad.
-        const size_t reserved = (std::min)(remaining, quads.size() + stereoHousings.size() + controllerQuads.size());
+        // Stereo quad housings take two layers; projection housings take one.
+        // Edit helper panels (the shortcut HUD and selection frame) must remain
+        // visible while editing, even when ordinary panel layers fill the budget.
+        const size_t reserved = (std::min)(remaining, quads.size() + stereoHousings.size() +
+            controllerQuads.size() + projectionScenes.size());
         const size_t stereoCount = (std::min)(stereoHousings.size(), remaining - reserved);
         const size_t stereoSkipped = stereoHousings.size() - stereoCount;
         for (size_t i = 0; i < stereoSkipped; ++i)
             quads.push_back(stereoHousings[i].fallbackContent);
         remaining -= stereoCount * 2;
+        const size_t editHelperCount = allocate(editHelperQuads.size());
         const size_t panelCount = allocate(quads.size());
         const size_t controllerCount = allocate(controllerQuads.size());
         const bool includeVisor = hasVisorLayer && allocate(1) == 1;
+        const size_t projectionCount = allocate(projectionScenes.size());
         const bool includeDecoration = decorativeQuads.size() <= remaining;
-        const size_t omitted = stereoSkipped + quads.size() - panelCount +
-            controllerQuads.size() - controllerCount + (hasVisorLayer && !includeVisor ? 1 : 0) +
+        const size_t omitted = stereoSkipped + projectionScenes.size() - projectionCount + quads.size() - panelCount +
+            editHelperQuads.size() - editHelperCount + controllerQuads.size() - controllerCount + (hasVisorLayer && !includeVisor ? 1 : 0) +
             (includeDecoration ? 0 : decorativeQuads.size());
         static size_t lastOmitted = 0;
         if (omitted != lastOmitted)
         {
             Logging::Log("Hook_xrEndFrame: composition layer budget=" + std::to_string(layerLimit) +
                 ", omitted overlays=" + std::to_string(omitted) +
-                " (host/content/controllers take priority over visor and decorative housing).");
+                " (host/edit helpers/content/controllers take priority over visor and decorative housing).");
             lastOmitted = omitted;
         }
         combinedLayers.reserve(layerLimit);
@@ -2534,11 +2881,15 @@ namespace
         for (size_t i = stereoSkipped; i < stereoHousings.size(); ++i)
             for (const auto& eyeQuad : stereoHousings[i].eyes)
                 combinedLayers.push_back(reinterpret_cast<const XrCompositionLayerBaseHeader*>(&eyeQuad));
+        for (size_t i = 0; i < projectionCount; ++i)
+            combinedLayers.push_back(reinterpret_cast<const XrCompositionLayerBaseHeader*>(&projectionScenes[i].layer));
         if (includeDecoration)
             for (const auto& quad : decorativeQuads)
                 combinedLayers.push_back(reinterpret_cast<const XrCompositionLayerBaseHeader*>(&quad));
         for (size_t i = 0; i < panelCount; ++i)
             combinedLayers.push_back(reinterpret_cast<const XrCompositionLayerBaseHeader*>(&quads[i]));
+        for (size_t i = 0; i < editHelperCount; ++i)
+            combinedLayers.push_back(reinterpret_cast<const XrCompositionLayerBaseHeader*>(&editHelperQuads[i]));
         for (size_t i = 0; i < controllerCount; ++i)
             combinedLayers.push_back(reinterpret_cast<const XrCompositionLayerBaseHeader*>(&controllerQuads[i]));
         if (includeVisor)
