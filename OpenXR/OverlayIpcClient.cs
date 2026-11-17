@@ -364,6 +364,12 @@ namespace Donutz_VR_HUD.OpenXR
             Send(OverlayIpcMessageType.SetHousingParams, StructToBytes(message));
         }
 
+        public void SetMotionTelemetry(float heaveG)
+        {
+            var message = new SetMotionTelemetryMessage { HeaveG = heaveG };
+            Send(OverlayIpcMessageType.SetMotionTelemetry, StructToBytes(message));
+        }
+
         /// <summary>
         /// Sends the housing cross-section profile used by the 3D mesh mode
         /// (see NativeLayer/HousingRenderer.cpp).

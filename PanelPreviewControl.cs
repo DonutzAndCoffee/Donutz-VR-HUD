@@ -330,7 +330,7 @@ namespace Donutz_VR_HUD
             };
             var bezelPixels = Math.Clamp(bezelMm, 0, 100) * scale / 1000.0;
             var fixedCoordinate = (horizontal ? screen.Height : screen.Width) / 2 + bezelPixels * 0.4;
-            var radius = Math.Max(0.3, Math.Min(bezelPixels * 0.18, pitch * 0.32));
+            var radius = Math.Max(0.3, Math.Min(bezelPixels * 0.18, pitch * 0.32)) * _panel.HousingLedSize;
             var middleX = screen.X + screen.Width / 2;
             var middleY = screen.Y + screen.Height / 2;
 
@@ -342,10 +342,28 @@ namespace Donutz_VR_HUD
                     ? new Point(middleX + along, middleY + (edge == 0 ? -1 : 1) * fixedCoordinate)
                     : new Point(middleX + (edge == 2 ? -1 : 1) * fixedCoordinate, middleY - along);
                 var color = GetLedColor(ledIndex, _panel.HousingLedBrightness);
-                drawingContext.DrawEllipse(new SolidColorBrush(Color.FromArgb(60, color.R, color.G, color.B)), null,
-                    center, radius * 1.8, radius * 1.8);
-                drawingContext.DrawEllipse(new SolidColorBrush(color),
-                    new Pen(new SolidColorBrush(Color.FromRgb(218, 223, 229)), 0.7), center, radius, radius);
+                var brush = new SolidColorBrush(color);
+                var pen = new Pen(new SolidColorBrush(Color.FromRgb(218, 223, 229)), 0.7);
+                if (_panel.HousingLedShape == HousingLedShape.Round)
+                {
+                    drawingContext.DrawEllipse(new SolidColorBrush(Color.FromArgb(60, color.R, color.G, color.B)), null,
+                        center, radius * 1.8, radius * 1.8);
+                    drawingContext.DrawEllipse(brush, pen, center, radius, radius);
+                    continue;
+                }
+
+                var square = _panel.HousingLedShape == HousingLedShape.Square;
+                var halfAlong = square ? radius : pitch * 0.42 * _panel.HousingLedSize;
+                var halfAcross = radius;
+                var bounds = horizontal
+                    ? new Rect(center.X - halfAlong, center.Y - halfAcross, halfAlong * 2, halfAcross * 2)
+                    : new Rect(center.X - halfAcross, center.Y - halfAlong, halfAcross * 2, halfAlong * 2);
+                var cornerRadius = Math.Min(halfAcross * 0.45, halfAlong * 0.35);
+                var glow = new SolidColorBrush(Color.FromArgb(60, color.R, color.G, color.B));
+                var glowBounds = new Rect(bounds.X - radius * 0.6, bounds.Y - radius * 0.6,
+                    bounds.Width + radius * 1.2, bounds.Height + radius * 1.2);
+                drawingContext.DrawRoundedRectangle(glow, null, glowBounds, cornerRadius + radius * 0.6, cornerRadius + radius * 0.6);
+                drawingContext.DrawRoundedRectangle(brush, pen, bounds, cornerRadius, cornerRadius);
             }
         }
 

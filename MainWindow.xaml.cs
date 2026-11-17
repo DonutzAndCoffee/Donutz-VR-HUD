@@ -2096,7 +2096,11 @@ namespace Donutz_VR_HUD
                 case nameof(OverlayPanel.HousingCornerRadiusMm):
                 case nameof(OverlayPanel.HousingRenderMode):
                 case nameof(OverlayPanel.HousingRenderScale):
+                case nameof(OverlayPanel.HousingMotionEnabled):
+                case nameof(OverlayPanel.HousingMotionStrength):
                 case nameof(OverlayPanel.HousingLedsEnabled):
+                case nameof(OverlayPanel.HousingLedShape):
+                case nameof(OverlayPanel.HousingLedSize):
                 case nameof(OverlayPanel.HousingLedCount):
                 case nameof(OverlayPanel.HousingLedStart):
                 case nameof(OverlayPanel.HousingLedBrightness):
@@ -2161,7 +2165,9 @@ namespace Donutz_VR_HUD
                 Left = Edge(leds && panel.HousingLedLeftEnabled, panel.HousingLedLeftCount, panel.HousingLedLeftStart, panel.HousingLedLeftReverse),
                 Right = Edge(leds && panel.HousingLedRightEnabled, panel.HousingLedRightCount, panel.HousingLedRightStart, panel.HousingLedRightReverse),
                 Brightness = panel.HousingLedBrightness,
-                Width = panel.HousingLedWidth
+                Width = panel.HousingLedWidth,
+                Shape = (byte)panel.HousingLedShape,
+                Size = panel.HousingLedSize
             });
             }
 
@@ -2193,6 +2199,8 @@ namespace Donutz_VR_HUD
                     panel.HousingRenderMode == HousingRenderMode.Quads
                     ? HousingRenderMode.Mesh : panel.HousingRenderMode),
                 RenderScale = Math.Clamp(panel.HousingRenderScale, 0.5f, 1f),
+                MotionEnabled = panel.HousingMotionEnabled,
+                MotionStrength = panel.HousingMotionStrength,
             };
         }
 
@@ -2713,11 +2721,16 @@ namespace Donutz_VR_HUD
             _ledReceiverError = null;
             try
             {
-                _ledReceiver = new SimHubLedReceiver(colors =>
+                var receiver = new SimHubLedReceiver(colors =>
                 {
                     lock (_ledForwardLock) _ipcClient?.UpdateLedColors(colors);
                 }, OverlayIpcClient.AppendAppLogEntry);
-                OverlayIpcClient.AppendAppLogEntry($"SimHub LED receiver listening on localhost UDP port {SimHubLedReceiver.Port}.");
+                receiver.MotionReceived += (heaveG, _) =>
+                {
+                    lock (_ledForwardLock) _ipcClient?.SetMotionTelemetry(heaveG);
+                };
+                _ledReceiver = receiver;
+                OverlayIpcClient.AppendAppLogEntry($"SimHub telemetry receiver listening on localhost UDP port {SimHubLedReceiver.Port}.");
             }
             catch (System.Net.Sockets.SocketException ex)
             {
@@ -2732,9 +2745,15 @@ namespace Donutz_VR_HUD
                 ? $"LED receiver unavailable: {_ledReceiverError}. Check whether another HUD instance is running, then choose Check again."
                 : _ledReceiver is null || _ledReceiver.Completion.IsCompleted
                     ? "LED receiver stopped. Check the app log and choose Check again."
-                    : _ledReceiver.IsReceiving
-                        ? "Valid LED data received on localhost."
-                        : "No LED data received. Start SimHub and enable the bridge; installation alone does not confirm it is active.";
+                    : !_ledReceiver.IsReceiving
+                        ? Localization.T("SimHubBridge.NoData")
+                        : _ledReceiver.MotionError is { } motionError
+                            ? motionError
+                        : !_ledReceiver.IsReceivingMotion
+                            ? Localization.T("SimHubBridge.MotionMissing")
+                            : _ledReceiver.HasActiveMotionTelemetry
+                                ? Localization.T("SimHubBridge.TelemetryActive")
+                                : Localization.T("SimHubBridge.WaitingForSession");
         }
 
         private void RefreshSimHubBridgeStatus()

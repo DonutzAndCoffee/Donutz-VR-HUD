@@ -527,7 +527,7 @@ float4 PSContent(PSIn input) : SV_TARGET
 			const float edgeBezel = edgeIndex == 0 ? bezelTop : edgeIndex == 1 ? bezelBottom : edgeIndex == 2 ? bezelLeft : bezelRight;
 			const float length = horizontal ? inst.widthMeters : inst.heightMeters;
 			const float pitch = length * inst.leds.width / edge.count;
-			const float radius = (std::min)(edgeBezel * 0.18f, pitch * 0.32f);
+			const float radius = (std::min)(edgeBezel * 0.18f, pitch * 0.32f) * inst.leds.size;
 			const float fixedCoord = (horizontal ? hh : hw) + edgeBezel * 0.4f;
 			const float sign = (edgeIndex == 0 || edgeIndex == 3) ? 1.0f : -1.0f;
 			for (uint32_t i = 0; i < edge.count; ++i)
@@ -538,13 +538,32 @@ float4 PSContent(PSIn input) : SV_TARGET
 				const float x = horizontal ? along : sign * fixedCoord;
 				const float y = horizontal ? sign * fixedCoord : along;
 				const Vec3 centre{ x, y, 0.0006f + radius * 0.25f };
-				for (uint32_t s = 0; s < 16; ++s)
+				if (inst.leds.shape == IpcServer::HousingLedShape::Round)
 				{
-					const float a = s * 6.2831853f / 16;
-					const float b = (s + 1) * 6.2831853f / 16;
-					PushTri(out, centre,
-						{ x + radius * cosf(a), y + radius * sinf(a), 0.0006f },
-						{ x + radius * cosf(b), y + radius * sinf(b), 0.0006f }, lens, 0.15f, 0.0f);
+					for (uint32_t s = 0; s < 16; ++s)
+					{
+						const float a = s * 6.2831853f / 16;
+						const float b = (s + 1) * 6.2831853f / 16;
+						PushTri(out, centre,
+							{ x + radius * cosf(a), y + radius * sinf(a), 0.0006f },
+							{ x + radius * cosf(b), y + radius * sinf(b), 0.0006f }, lens, 0.15f, 0.0f);
+					}
+				}
+				else
+				{
+					const bool square = inst.leds.shape == IpcServer::HousingLedShape::Square;
+					const float halfAlong = square ? radius : pitch * 0.42f * inst.leds.size;
+					const float halfAcross = radius;
+					const float left = horizontal ? x - halfAlong : x - halfAcross;
+					const float right = horizontal ? x + halfAlong : x + halfAcross;
+					const float bottom = horizontal ? y - halfAcross : y - halfAlong;
+					const float top = horizontal ? y + halfAcross : y + halfAlong;
+					const float cornerRadius = (std::min)(halfAcross * 0.45f, halfAlong * 0.35f);
+					const auto outline = OutlineBounds(left, bottom, right, top, cornerRadius, 0.0006f, 2);
+					for (size_t s = 0; s < outline.size(); ++s)
+					{
+						PushTri(out, centre, outline[s], outline[(s + 1) % outline.size()], lens, 0.15f, 0.0f);
+					}
 				}
 			}
 		}
@@ -559,7 +578,8 @@ float4 PSContent(PSIn input) : SV_TARGET
 			std::to_string(p.depthMm) + "|" + std::to_string(p.displayRecessMm) + "|" + std::to_string(p.cornerRadiusMm) + "|" +
 			std::to_string(p.colorR) + "|" + std::to_string(p.colorG) + "|" + std::to_string(p.colorB) + "|" +
 			std::to_string(p.roughness) + "|" + std::to_string(p.metallic) + "|logo" + std::to_string(p.logoPosition) + ":" +
-			std::to_string(p.logoWidthMm) + "|led" + std::to_string(inst.leds.width);
+			std::to_string(p.logoWidthMm) + "|led" + std::to_string(inst.leds.width) + "," +
+			std::to_string(static_cast<uint8_t>(inst.leds.shape)) + "," + std::to_string(inst.leds.size);
 		s.append(reinterpret_cast<const char*>(p.logoPath), sizeof(p.logoPath));
 		for (const auto& edge : inst.leds.edges)
 		{

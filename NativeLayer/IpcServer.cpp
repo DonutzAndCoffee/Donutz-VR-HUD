@@ -55,6 +55,9 @@ namespace
 	std::atomic<bool> g_editModeActive{ false };
 	IpcServer::LedColors g_ledColors{};
 	std::chrono::steady_clock::time_point g_ledUpdated{};
+	std::mutex g_motionMutex;
+	IpcServer::MotionTelemetry g_motionTelemetry{};
+	std::chrono::steady_clock::time_point g_motionUpdated{};
 
 	// Outgoing (server -> client) message queue, drained by ServerLoop's
 	// per-connection loop right after each read attempt. A dedicated write
@@ -228,6 +231,8 @@ namespace
 				msg.params.bezelRightMm = std::clamp(msg.params.bezelRightMm, 0.0f, 100.0f);
 				msg.params.logoWidthMm = std::clamp(msg.params.logoWidthMm, 5.0f, 100.0f);
 				if (msg.params.logoPosition > 5) msg.params.logoPosition = 0;
+				msg.params.motionStrength = std::isfinite(msg.params.motionStrength)
+					? std::clamp(msg.params.motionStrength, 0.0f, 1.0f) : 0.0f;
 				panel.housing = msg.params;
 				Logging::Log(std::string("IpcServer: housing params received, enabled=") + (panel.hasHousing ? "1" : "0"));
 			}
@@ -262,10 +267,10 @@ namespace
 			}
 			break;
 		case IpcServer::MessageType::SetHousingLeds:
-			if (payload.size() == sizeof(IpcServer::SetHousingLedsPayload))
+			if (payload.size() == sizeof(IpcServer::SetHousingLedsPayload) || payload.size() == 45 || payload.size() == 44)
 			{
-				IpcServer::SetHousingLedsPayload msg;
-				std::memcpy(&msg, payload.data(), sizeof(msg));
+				IpcServer::SetHousingLedsPayload msg{};
+				std::memcpy(&msg, payload.data(), payload.size());
 				bool edgesValid = true;
 				for (const auto& edge : msg.params.edges)
 				{
@@ -274,9 +279,10 @@ namespace
 						edgesValid = false;
 					}
 				}
-				if (!edgesValid ||
-					!std::isfinite(msg.params.brightness) || !std::isfinite(msg.params.width) ||
-					msg.params.brightness < 0 || msg.params.brightness > 1 || msg.params.width < 0.1f || msg.params.width > 1)
+				if (!edgesValid || static_cast<uint8_t>(msg.params.shape) > static_cast<uint8_t>(IpcServer::HousingLedShape::Square) ||
+					!std::isfinite(msg.params.brightness) || !std::isfinite(msg.params.width) || !std::isfinite(msg.params.size) ||
+					msg.params.brightness < 0 || msg.params.brightness > 1 || msg.params.width < 0.1f || msg.params.width > 1 ||
+					msg.params.size < 0.25f || msg.params.size > 2.0f)
 				{
 					Logging::Log("IpcServer: invalid housing LED configuration.");
 					break;
@@ -303,6 +309,20 @@ namespace
 					std::memcpy(g_ledColors[i].data(), payload.data() + sizeof(count) + i * 3, 3);
 				g_ledUpdated = std::chrono::steady_clock::now();
 			}
+			break;
+		case IpcServer::MessageType::SetMotionTelemetry:
+			if (payload.size() == sizeof(IpcServer::SetMotionTelemetryPayload))
+			{
+				IpcServer::SetMotionTelemetryPayload msg;
+				std::memcpy(&msg, payload.data(), sizeof(msg));
+				if (std::isfinite(msg.heaveG))
+				{
+					std::lock_guard<std::mutex> lock(g_motionMutex);
+					g_motionTelemetry.heaveG = std::clamp(msg.heaveG, -3.0f, 3.0f);
+					g_motionUpdated = std::chrono::steady_clock::now();
+				}
+			}
+			else Logging::Log("IpcServer: invalid motion telemetry payload size.");
 			break;
 		case IpcServer::MessageType::SetEditModeActive:
 			if (payload.size() >= sizeof(IpcServer::SetEditModeActivePayload))
@@ -479,6 +499,13 @@ namespace IpcServer
 		std::lock_guard<std::mutex> lock(g_stateMutex);
 		if (std::chrono::steady_clock::now() - g_ledUpdated > std::chrono::seconds(2)) return {};
 		return g_ledColors;
+	}
+
+	MotionTelemetry GetMotionTelemetry()
+	{
+		std::lock_guard<std::mutex> lock(g_motionMutex);
+		if (std::chrono::steady_clock::now() - g_motionUpdated > std::chrono::milliseconds(500)) return {};
+		return g_motionTelemetry;
 	}
 
 	void QueuePanelTransformUpdated(const PanelState& panel)

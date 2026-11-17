@@ -75,8 +75,12 @@ namespace Donutz_VR_HUD.Settings
         public float HousingCornerRadiusMm { get; set; } = 4f;
         public HousingRenderMode HousingRenderMode { get; set; } = HousingRenderMode.DisplayPlaneStereo;
         public float HousingRenderScale { get; set; } = 1f;
+        public bool HousingMotionEnabled { get; set; }
+        public float HousingMotionStrength { get; set; } = 0.35f;
         public string HousingProfileName { get; set; } = HousingProfile.DefaultName;
         public bool HousingLedsEnabled { get; set; }
+        public HousingLedShape HousingLedShape { get; set; } = HousingLedShape.Round;
+        public float HousingLedSize { get; set; } = 1f;
         public int HousingLedCount { get; set; } = 16;
         public int HousingLedStart { get; set; } = 1;
         public float HousingLedBrightness { get; set; } = 0.6f;
@@ -140,8 +144,12 @@ namespace Donutz_VR_HUD.Settings
             HousingCornerRadiusMm = panel.HousingCornerRadiusMm,
             HousingRenderMode = panel.HousingRenderMode,
             HousingRenderScale = panel.HousingRenderScale,
+            HousingMotionEnabled = panel.HousingMotionEnabled,
+            HousingMotionStrength = panel.HousingMotionStrength,
             HousingProfileName = panel.HousingProfileName,
             HousingLedsEnabled = panel.HousingLedsEnabled,
+            HousingLedShape = panel.HousingLedShape,
+            HousingLedSize = panel.HousingLedSize,
             HousingLedCount = panel.HousingLedCount,
             HousingLedStart = panel.HousingLedStart,
             HousingLedBrightness = panel.HousingLedBrightness,
@@ -250,8 +258,12 @@ namespace Donutz_VR_HUD.Settings
                     _ => HousingRenderMode
                 },
                 HousingRenderScale = HousingRenderScale > 0 ? HousingRenderScale : 1f,
+                HousingMotionEnabled = HousingMotionEnabled,
+                HousingMotionStrength = float.IsFinite(HousingMotionStrength) ? Math.Clamp(HousingMotionStrength, 0f, 1f) : 0.35f,
                 HousingProfileName = HousingProfileName ?? HousingProfile.DefaultName,
                 HousingLedsEnabled = HousingLedsEnabled,
+                HousingLedShape = Enum.IsDefined(HousingLedShape) ? HousingLedShape : global::Donutz_VR_HUD.Models.HousingLedShape.Round,
+                HousingLedSize = HousingLedSize,
                 HousingLedCount = HousingLedCount,
                 HousingLedStart = HousingLedStart,
                 HousingLedBrightness = HousingLedBrightness,

@@ -65,6 +65,9 @@ namespace Donutz_VR_HUD.Shared
         /// <summary>Client -> server: uint16 color count followed by RGB bytes (up to 256 LEDs).</summary>
         UpdateLedColors = 10,
 
+        /// <summary>Client -> server: current vertical acceleration (heave) in G.</summary>
+        SetMotionTelemetry = 11,
+
         /// <summary>
         /// Server -> client: a VR controller grab ended, reporting the
         /// panel's final position/rotation so the app can update its
@@ -217,6 +220,15 @@ namespace Donutz_VR_HUD.Shared
 
         /// <summary>Housing resolution scale; mode 2 also scales the dashboard (0.5..1.0).</summary>
         public float RenderScale;
+        [MarshalAs(UnmanagedType.I1)] public bool MotionEnabled;
+        public float MotionStrength;
+    }
+
+    /// <summary>Client -> server. Current vertical acceleration (heave) in G.</summary>
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    public struct SetMotionTelemetryMessage
+    {
+        public float HeaveG;
     }
 
     /// <summary>
@@ -253,6 +265,8 @@ namespace Donutz_VR_HUD.Shared
         public HousingLedEdge Right;
         public float Brightness;
         public float Width;
+        public byte Shape;
+        public float Size;
     }
 
     /// <summary>Server -> client. See <see cref="OverlayIpcMessageType.PanelTransformUpdated"/>.</summary>

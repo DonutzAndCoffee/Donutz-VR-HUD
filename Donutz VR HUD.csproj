@@ -9,9 +9,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
     <PlatformTarget>x64</PlatformTarget>
-    <Version>1.7.1</Version>
-    <AssemblyVersion>1.7.1.0</AssemblyVersion>
-    <FileVersion>1.7.1.0</FileVersion>
+    <Version>1.8.0</Version>
+    <AssemblyVersion>1.8.0.0</AssemblyVersion>
+    <FileVersion>1.8.0.0</FileVersion>
     <!--
       CefSharp's build targets only copy libcef.dll, the .pak resource
       files, locales, and the BrowserSubprocess next to the output when
@@ -90,6 +90,9 @@
     </None>
     <None Include=".github\copilot-instructions.md" />
     <None Include="NativeLayer\NativeLayer.vcxproj" />
+    <None Include="session-state\files\led-size-verification\LedSizeVerification.csproj" />
+    <None Include="session-state\files\motion-protocol-verification\MotionVerification.csproj" />
+    <None Include="session-state\files\release-171-verification\ReleaseVerification.csproj" />
     <None Include="SimHubBridge\Donutz.SimHubLedBridge.csproj" />
     <Content Include="SimHubBridge\bin\Release\net48\Donutz.SimHubLedBridge.dll" Condition="Exists('SimHubBridge\bin\Release\net48\Donutz.SimHubLedBridge.dll')">
       <Link>SimHubBridge\Donutz.SimHubLedBridge.dll</Link>

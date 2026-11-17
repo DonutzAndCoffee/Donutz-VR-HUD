@@ -536,6 +536,7 @@
                                                 <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
                                                 <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
                                                 <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
                                             </Grid.RowDefinitions>
                                             <TextBlock Grid.Row="0" Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Housing.BezelTop]}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                                             <Slider Grid.Row="0" Grid.Column="1" Value="{Binding HousingBezelTopMm}" Minimum="0" Maximum="100" VerticalAlignment="Center" Margin="0,2"
@@ -637,6 +638,12 @@
                                             <Slider Grid.Row="15" Grid.Column="1" Value="{Binding HousingRenderScale}" Minimum="0.5" Maximum="1" VerticalAlignment="Center" Margin="0,2"
                                                     ToolTip="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Housing.Tip.RenderScale]}"/>
                                             <TextBlock Grid.Row="15" Grid.Column="2" Text="{Binding HousingRenderScale, StringFormat={}{0:P0}}" VerticalAlignment="Center" TextAlignment="Right"/>
+                                            <CheckBox Grid.Row="16" Grid.ColumnSpan="3" Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Housing.MotionEnabled]}" IsChecked="{Binding HousingMotionEnabled}"
+                                                      ToolTip="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Housing.Tip.Motion]}" Margin="0,4,0,0"/>
+                                            <TextBlock Grid.Row="17" Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Housing.MotionStrength]}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                            <Slider Grid.Row="17" Grid.Column="1" Value="{Binding HousingMotionStrength}" Minimum="0" Maximum="1" IsEnabled="{Binding HousingMotionEnabled}" VerticalAlignment="Center" Margin="0,2"
+                                                    ToolTip="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Housing.Tip.Motion]}"/>
+                                            <TextBlock Grid.Row="17" Grid.Column="2" Text="{Binding HousingMotionStrength, StringFormat={}{0:P0}}" VerticalAlignment="Center" TextAlignment="Right"/>
                                         </Grid>
                                     </GroupBox>
                                     <GroupBox Header="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Leds.Group]}" Padding="6" Margin="0,6,0,0"
@@ -646,6 +653,25 @@
                                             <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Leds.Help]}" TextWrapping="Wrap" Margin="0,4,0,8"/>
                                             <Button Content="{Binding Source={x:Static local:Localization.Instance}, Path=[SimHubBridge.Setup]}" Click="SimHubBridgeSetupButton_Click" HorizontalAlignment="Left" Margin="0,0,0,8"/>
                                             <StackPanel IsEnabled="{Binding HousingLedsEnabled}">
+                                                <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Leds.Shape]}"/>
+                                                <ComboBox ItemsSource="{x:Static models:HousingProfile.LedShapes}" SelectedItem="{Binding HousingLedShape}" Margin="0,2,0,6">
+                                                    <ComboBox.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <TextBlock>
+                                                                <TextBlock.Style>
+                                                                    <Style TargetType="TextBlock">
+                                                                        <Setter Property="Text" Value="{Binding}"/>
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding}" Value="{x:Static models:HousingLedShape.Round}"><Setter Property="Text" Value="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Leds.Shape.Round]}"/></DataTrigger>
+                                                                            <DataTrigger Binding="{Binding}" Value="{x:Static models:HousingLedShape.Rectangular}"><Setter Property="Text" Value="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Leds.Shape.Rectangular]}"/></DataTrigger>
+                                                                            <DataTrigger Binding="{Binding}" Value="{x:Static models:HousingLedShape.Square}"><Setter Property="Text" Value="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Leds.Shape.Square]}"/></DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBlock.Style>
+                                                            </TextBlock>
+                                                        </DataTemplate>
+                                                    </ComboBox.ItemTemplate>
+                                                </ComboBox>
                                                 <GroupBox Padding="6" Margin="0,0,0,4">
                                                     <GroupBox.Header>
                                                         <CheckBox Content="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Leds.Top]}" IsChecked="{Binding HousingLedTopEnabled}"/>
@@ -722,6 +748,11 @@
                                                 <DockPanel>
                                                     <TextBlock DockPanel.Dock="Right" Text="{Binding HousingLedWidth, StringFormat={}{0:P0}}" Width="40" TextAlignment="Right"/>
                                                     <Slider Value="{Binding HousingLedWidth}" Minimum="0.1" Maximum="1"/>
+                                                </DockPanel>
+                                                <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Leds.Size]}" ToolTip="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Leds.SizeHelp]}"/>
+                                                <DockPanel ToolTip="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Leds.SizeHelp]}">
+                                                    <TextBlock DockPanel.Dock="Right" Text="{Binding HousingLedSize, StringFormat={}{0:P0}}" Width="48" TextAlignment="Right"/>
+                                                    <Slider Value="{Binding HousingLedSize}" Minimum="0.25" Maximum="2"/>
                                                 </DockPanel>
                                                 <TextBlock Text="{Binding Source={x:Static local:Localization.Instance}, Path=[Panel.Leds.Brightness]}"/>
                                                 <DockPanel>

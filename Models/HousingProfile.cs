@@ -11,6 +11,14 @@ namespace Donutz_VR_HUD.Models
         BottomRight
     }
 
+    /// <summary>Shape of the optional SimHub LEDs on a panel housing.</summary>
+    public enum HousingLedShape : byte
+    {
+        Round,
+        Rectangular,
+        Square
+    }
+
     /// <summary>How a panel housing is rendered.</summary>
     public enum HousingRenderMode : byte
     {
@@ -101,6 +109,8 @@ namespace Donutz_VR_HUD.Models
         };
 
         public static IReadOnlyList<HousingLogoPosition> LogoPositions { get; } = Enum.GetValues<HousingLogoPosition>();
+
+        public static IReadOnlyList<HousingLedShape> LedShapes { get; } = Enum.GetValues<HousingLedShape>();
 
         public static HousingProfile Find(string? name) =>
             BuiltIn.FirstOrDefault(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase)) ?? BuiltIn[0];

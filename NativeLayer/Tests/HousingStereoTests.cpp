@@ -739,6 +739,7 @@ namespace IpcServer
 	std::vector<PanelState> GetPanelsSnapshot() { return Test::panels; }
 	bool ConsumeRecenterRequested() { return false; }
 	LedColors GetLedColors() { return {}; }
+	MotionTelemetry GetMotionTelemetry() { return {}; }
 }
 namespace ContentBounds
 {

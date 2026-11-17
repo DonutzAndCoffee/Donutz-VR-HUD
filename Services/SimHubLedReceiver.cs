@@ -14,8 +14,12 @@ namespace Donutz_VR_HUD.Services
         private readonly Action<string> _log;
         private int _disposed;
         private long _lastPacketTimestamp;
+        private long _lastMotionPacketTimestamp;
+        private int _motionTelemetryActive;
+        private string? _motionError;
         private byte[] _latestColors = [];
 
+        public string? MotionError => Volatile.Read(ref _motionError);
         internal byte[] LatestColors => IsReceiving ? Volatile.Read(ref _latestColors) : [];
 
         public bool IsReceiving
@@ -49,6 +53,18 @@ namespace Donutz_VR_HUD.Services
 
         public int LocalPort { get; }
         public Task Completion { get; }
+        public event Action<float, bool>? MotionReceived;
+
+        public bool IsReceivingMotion
+        {
+            get
+            {
+                var timestamp = Interlocked.Read(ref _lastMotionPacketTimestamp);
+                return timestamp != 0 && System.Diagnostics.Stopwatch.GetElapsedTime(timestamp) < TimeSpan.FromSeconds(2);
+            }
+        }
+
+        public bool HasActiveMotionTelemetry => IsReceivingMotion && Volatile.Read(ref _motionTelemetryActive) != 0;
 
         public static byte[] ParsePacket(ReadOnlySpan<byte> packet)
         {
@@ -64,28 +80,67 @@ namespace Donutz_VR_HUD.Services
             return packet[8..].ToArray();
         }
 
+        public static (float HeaveG, bool IsActive) ParseMotionPacket(ReadOnlySpan<byte> packet)
+        {
+            if (packet.Length == 14 && packet[..4].SequenceEqual("DMOT"u8) && packet[4] == 1)
+            {
+                throw new FormatException("The running SimHub bridge sends legacy cornering/braking data, not vertical acceleration. Close SimHub, choose Install / update bridge in this HUD, then restart SimHub.");
+            }
+            // Accept the initial 10-byte heave format, which still used version 1.
+            if (packet.Length != 10 || !packet[..4].SequenceEqual("DMOT"u8) || packet[4] is not (1 or 2) || packet[5] > 1)
+            {
+                throw new FormatException($"Unsupported motion packet (length {packet.Length}). Close SimHub, install the bridge bundled with this HUD, then restart SimHub.");
+            }
+
+            var heaveG = BinaryPrimitives.ReadSingleLittleEndian(packet[6..10]);
+            if (!float.IsFinite(heaveG))
+            {
+                throw new FormatException("Motion packet contains non-finite vertical acceleration values.");
+            }
+            return (heaveG, packet[5] != 0);
+        }
+
         private async Task ReceiveAsync()
         {
-            var invalidPacketReported = false;
+            var invalidLedPacketReported = false;
             try
             {
                 while (!_stop.IsCancellationRequested)
                 {
                     var received = await _udp.ReceiveAsync(_stop.Token).ConfigureAwait(false);
+                    var isMotionPacket = received.Buffer.AsSpan().StartsWith("DMOT"u8);
                     try
                     {
+                        if (isMotionPacket)
+                        {
+                            var motion = ParseMotionPacket(received.Buffer);
+                            Volatile.Write(ref _motionError, null);
+                            Volatile.Write(ref _motionTelemetryActive, motion.IsActive ? 1 : 0);
+                            Interlocked.Exchange(ref _lastMotionPacketTimestamp, System.Diagnostics.Stopwatch.GetTimestamp());
+                            MotionReceived?.Invoke(motion.IsActive ? motion.HeaveG : 0f, motion.IsActive);
+                            continue;
+                        }
+
                         var colors = ParsePacket(received.Buffer);
-                        invalidPacketReported = false;
+                        invalidLedPacketReported = false;
                         Volatile.Write(ref _latestColors, colors);
                         Interlocked.Exchange(ref _lastPacketTimestamp, System.Diagnostics.Stopwatch.GetTimestamp());
                         _onColors(colors);
                     }
                     catch (FormatException ex)
                     {
-                        if (!invalidPacketReported)
+                        if (isMotionPacket)
+                        {
+                            if (MotionError != ex.Message)
+                                _log($"SimHub motion packet rejected: {ex.Message}");
+                            Volatile.Write(ref _motionError, ex.Message);
+                            Volatile.Write(ref _motionTelemetryActive, 0);
+                            Interlocked.Exchange(ref _lastMotionPacketTimestamp, 0);
+                        }
+                        else if (!invalidLedPacketReported)
                         {
                             _log($"SimHub LED packet rejected: {ex.Message}");
-                            invalidPacketReported = true;
+                            invalidLedPacketReported = true;
                         }
                     }
                 }

@@ -200,12 +200,28 @@ namespace Donutz_VR_HUD.Models
         private float _housingRenderScale = 1f;
         public float HousingRenderScale { get => _housingRenderScale; set => Set(ref _housingRenderScale, Math.Clamp(value, 0.5f, 1f)); }
 
+        private bool _housingMotionEnabled;
+        public bool HousingMotionEnabled { get => _housingMotionEnabled; set => Set(ref _housingMotionEnabled, value); }
+
+        private float _housingMotionStrength = 0.35f;
+        public float HousingMotionStrength
+        {
+            get => _housingMotionStrength;
+            set => Set(ref _housingMotionStrength, float.IsFinite(value) ? Math.Clamp(value, 0f, 1f) : 0.35f);
+        }
+
         /// <summary>Name of the housing profile (see <see cref="HousingProfile"/>) used in mesh mode.</summary>
         private string _housingProfileName = HousingProfile.DefaultName;
         public string HousingProfileName { get => _housingProfileName; set => Set(ref _housingProfileName, string.IsNullOrWhiteSpace(value) ? HousingProfile.DefaultName : value); }
 
         private bool _housingLedsEnabled;
         public bool HousingLedsEnabled { get => _housingLedsEnabled; set => Set(ref _housingLedsEnabled, value); }
+
+        private HousingLedShape _housingLedShape = HousingLedShape.Round;
+        public HousingLedShape HousingLedShape { get => _housingLedShape; set => Set(ref _housingLedShape, value); }
+
+        private float _housingLedSize = 1f;
+        public float HousingLedSize { get => _housingLedSize; set => Set(ref _housingLedSize, float.IsFinite(value) ? Math.Clamp(value, 0.25f, 2f) : 1f); }
 
         private int _housingLedCount = 16;
         public int HousingLedCount { get => _housingLedCount; set => Set(ref _housingLedCount, Math.Clamp(value, 1, 64)); }

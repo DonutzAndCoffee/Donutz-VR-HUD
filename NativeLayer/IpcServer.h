@@ -48,6 +48,7 @@ namespace IpcServer
 		SetHousingProfile = 8,
 		SetHousingLeds = 9,
 		UpdateLedColors = 10,
+		SetMotionTelemetry = 11,
 
 		// Server -> client.
 		PanelTransformUpdated = 100,
@@ -166,6 +167,8 @@ namespace IpcServer
 		uint8_t renderMode;
 		// Housing resolution scale; mode 2 also scales the dashboard (0.5..1).
 		float renderScale;
+		uint8_t motionEnabled;
+		float motionStrength;
 	};
 
 	// One cross-section point: inset from the outer edge (mm) and depth as
@@ -191,7 +194,12 @@ namespace IpcServer
 		uint8_t enabled;
 		HousingParams params;
 	};
-	static_assert(sizeof(SetHousingParamsPayload) == 1104, "Housing params IPC layout mismatch");
+	static_assert(sizeof(SetHousingParamsPayload) == 1109, "Housing params IPC layout mismatch");
+
+	struct SetMotionTelemetryPayload
+	{
+		float heaveG;
+	};
 
 	struct HousingLedEdge
 	{
@@ -201,12 +209,21 @@ namespace IpcServer
 		uint8_t reverse;
 	};
 
+	enum class HousingLedShape : uint8_t
+	{
+		Round,
+		Rectangular,
+		Square
+	};
+
 	// Edge order: top, bottom, left, right.
 	struct HousingLeds
 	{
 		HousingLedEdge edges[4];
 		float brightness;
 		float width;
+		HousingLedShape shape;
+		float size = 1.0f;
 	};
 
 	struct SetHousingLedsPayload
@@ -214,7 +231,7 @@ namespace IpcServer
 		PanelIdBytes panelId;
 		HousingLeds params;
 	};
-	static_assert(sizeof(SetHousingLedsPayload) == 44, "LED IPC layout mismatch");
+	static_assert(sizeof(SetHousingLedsPayload) == 49, "LED IPC layout mismatch");
 
 	// Server -> client: final transform after a VR controller grab ends
 	// (see ControllerInput.cpp), so the managed app can update its
@@ -289,6 +306,12 @@ namespace IpcServer
 
 	using LedColors = std::array<std::array<uint8_t, 3>, 256>;
 	LedColors GetLedColors();
+
+	struct MotionTelemetry
+	{
+		float heaveG = 0.0f;
+	};
+	MotionTelemetry GetMotionTelemetry();
 
 	// Starts the background pipe-server thread on first call; subsequent
 	// calls are no-ops. Safe to call from any thread.

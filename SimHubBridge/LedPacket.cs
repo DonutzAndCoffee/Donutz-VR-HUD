@@ -21,5 +21,15 @@ namespace Donutz.SimHubLedBridge
             }
             return packet;
         }
+
+        public static byte[] EncodeMotionPacket(float heaveG, bool telemetryActive)
+        {
+            var packet = new byte[10];
+            packet[0] = (byte)'D'; packet[1] = (byte)'M'; packet[2] = (byte)'O'; packet[3] = (byte)'T';
+            packet[4] = 2;
+            packet[5] = telemetryActive ? (byte)1 : (byte)0;
+            Buffer.BlockCopy(BitConverter.GetBytes(heaveG), 0, packet, 6, 4);
+            return packet;
+        }
     }
 }

@@ -46,13 +46,15 @@ Demo Video: https://www.youtube.com/watch?v=1OoOyWGcSLQ
 
 Expand a non-visor panel to see its actual web dashboard, captured window, image, or animated test pattern, even while the VR overlay is stopped. The housing is shown from the front, not with the VR renderer's 3D lighting, and reflects the independently configured bezel widths and logo placement. With housing enabled, its opening and LED strips fit the visible content, excluding transparent outer margins using the same alpha threshold as the VR renderer. The cropped screen retains its physical scale relative to the bezel; disabling housing shows the entire source again. Fully transparent frames fall back to the full source dimensions. Transparency inside the content uses a checkerboard unless **Black instead of transparency** is enabled. Preview sources run only while the preview is visible and are separate from VR sources; web dashboards therefore have a separate browser session.
 
-LEDs show the real SimHub stream by default, including effects driven by SimHub test data or forced activations. Enable **Simulate RPM LEDs in preview** for an animated test without SimHub; it affects only the desktop preview, never LEDs in VR. Both modes use the panel's edge enables, channel ranges, reversal, strip width, and brightness. Vertical strips run bottom to top, horizontal strips left to right, unless reversed. Without live packets for two seconds, preview LEDs turn off just like in VR. The status below the preview reports missing data, source failures, and receiver errors.
+LEDs show the real SimHub stream by default, including effects driven by SimHub test data or forced activations. Enable **Simulate RPM LEDs in preview** for an animated test without SimHub; it affects only the desktop preview, never LEDs in VR. Both modes use the panel's edge enables, channel ranges, reversal, strip width, shape, size, and brightness. Vertical strips run bottom to top, horizontal strips left to right, unless reversed. Without live packets for two seconds, preview LEDs turn off just like in VR. The status below the preview reports missing data, source failures, and receiver errors.
 
 ## 3D housing and world scale
 
 If a stereo 3D housing looks distorted in depth, check the VR runtime's world-scale settings. In an iRacing test with SteamVR, a per-application world scale of **107%** caused visible distortion; setting it to **100%** resolved it. This is a tested workaround, not a requirement for every headset or runtime. The housing's **Render scale** setting controls image resolution and is unrelated to world scale.
 
 Donutz VR HUD currently has no runtime-independent world-scale correction. OpenXR provides view poses but no standard world-scale value that the HUD can reliably use to compensate for differences between runtimes. Other runtimes, including Pimax Play, have not been verified for this issue; if a similar distortion occurs, check their scale settings if available and try their neutral/default setting.
+
+The optional **React subtly to bumps and suspension** housing setting uses SimHub vertical acceleration (heave) to add adjustable vibration. Install or update the bundled SimHub bridge and enable it in SimHub. Motion requires active driving telemetry and is disabled by default for existing profiles.
 
 ## SimHub RPM LEDs
 
@@ -65,7 +67,7 @@ The HUD does not calculate RPM effects itself. The bundled bridge uses SimHub's 
 3. Start SimHub, enable **Donutz VR HUD LEDs** in Plugins, and configure its LED effects. The setup shows both the installed DLL version and whether valid LED data is currently arriving; an installed DLL alone does not mean the plugin is enabled. Data reception can be checked without connecting the overlay or starting a game.
 4. In the HUD, enable the housing and desired edges, then connect the overlay. Start with **Start LED = 1**, **LED count = 16**.
 
-Each edge selects a contiguous range from a shared **256-LED color stream**. LED count (1-64), start channel (1-based), and order are saved per edge; width and brightness are shared by the housing. Settings are saved with the panel/profile. Ranges stop at channel 256. Multiple edges or panels can mirror a range or use separate ranges.
+Each edge selects a contiguous range from a shared **256-LED color stream**. LED count (1-64), start channel (1-based), and order are saved per edge; strip width, brightness, LED size and LED shape (round, rectangular or square) are shared by the housing. LED size scales each lens from 25% to 200% independently of strip spacing; at large sizes LEDs may overlap or extend beyond the bezel. The desktop preview and VR use the selected size and shape. Settings are saved with the panel/profile; existing profiles default to 100%. Ranges stop at channel 256. Multiple edges or panels can mirror a range or use separate ranges. Update the HUD app and native layer together for the size setting.
 
 For developers and release packaging, first build `NativeLayer\NativeLayer.vcxproj` in Release x64 and `SimHubBridge\Donutz.SimHubLedBridge.csproj` in Release (the bridge requires the .NET Framework 4.8 targeting pack and an installed SimHub). For a non-default SimHub installation, pass `-p:SimHubDirectory="C:\Your\SimHub"`. Publish the HUD afterwards: it includes the native layer and the bridge in `SimHubBridge\Donutz.SimHubLedBridge.dll` next to the executable. Publishing fails if either component was not built; ordinary development builds without the bridge show a missing-package status instead.
 
@@ -91,13 +93,18 @@ Protocol v1: ASCII `DLED`, version byte `1`, reserved byte `0`, little-endian `u
 ## Installation (prebuilt release)
 
 1. Install the [.NET 10 Desktop Runtime (x64)](https://dotnet.microsoft.com/download/dotnet/10.0) if not already present.
-2. Download `DonutzVRHUD-v1.7.0-win-x64.zip` from the [Releases](https://github.com/DonutzAndCoffee/Donutz-VR-HUD/releases) page and extract it to a permanent folder (the OpenXR layer is registered from this location).
+2. Download `DonutzVRHUD-v1.8.0-win-x64.zip` from the [Releases](https://github.com/DonutzAndCoffee/Donutz-VR-HUD/releases) page and extract it to a permanent folder (the OpenXR layer is registered from this location).
 3. Start `Donutz VR HUD.exe` and use the layer registration button in the app to register the OpenXR API layer (requires administrator rights).
 4. Start your OpenXR sim (e.g. iRacing) in VR.
 
-When upgrading, close the HUD and your VR application, extract the complete new package, and register the layer from the new location. The v1.6 app and native layer use an updated LED IPC format and must be updated together. Follow the SimHub LED setup above to install or update the bridge.
+When upgrading, close the HUD and your VR application, extract the complete new package, and register the layer from the new location. The v1.8 app and native layer use updated housing and LED IPC formats and must be updated together. Follow the SimHub LED setup above to update the bridge for motion telemetry.
 
 ## Changelog
+
+### v1.8.0
+- Choose round, rectangular or square LEDs and adjust their size from 25% to 200% in VR and the desktop preview. Existing profiles retain round LEDs at 100%.
+- Optionally animate the housing with adjustable suspension vibration using SimHub vertical acceleration. Update the bundled SimHub bridge and enable it for telemetry.
+- Update the app and native layer together because housing and LED IPC formats changed. Real SimHub and headset testing remains necessary.
 
 ### v1.7.1
 - Make display-plane Stereo 3D the recommended housing mode and default, improving dashboard alignment compared with the earlier head-facing stereo mode.

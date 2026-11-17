@@ -13,6 +13,7 @@
 #include <wrl/client.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstring>
 #include <atomic>
@@ -152,6 +153,43 @@ namespace
             v.y + qw * t.y + (qv.z * t.x - qv.x * t.z),
             v.z + qw * t.z + (qv.x * t.y - qv.y * t.x)
         };
+    }
+
+    struct HousingMotionSample
+    {
+        float heaveG;
+    };
+
+    HousingMotionSample UpdateHousingMotion()
+    {
+        static float fastHeaveG = 0.0f;
+        static float baselineHeaveG = 0.0f;
+        static auto lastUpdate = std::chrono::steady_clock::now();
+        const auto now = std::chrono::steady_clock::now();
+        const float dt = std::clamp(std::chrono::duration<float>(now - lastUpdate).count(), 0.0f, 0.1f);
+        lastUpdate = now;
+
+        const auto telemetry = IpcServer::GetMotionTelemetry();
+        const float fastBlend = 1.0f - expf(-dt / 0.04f);
+        const float baselineBlend = 1.0f - expf(-dt / 0.5f);
+        fastHeaveG += (telemetry.heaveG - fastHeaveG) * fastBlend;
+        baselineHeaveG += (telemetry.heaveG - baselineHeaveG) * baselineBlend;
+        return { fastHeaveG - baselineHeaveG };
+    }
+
+    void ApplyHousingMotion(XrPosef& pose, const IpcServer::HousingParams& params, const HousingMotionSample& motion)
+    {
+        if (params.motionEnabled == 0 || !std::isfinite(params.motionStrength)) return;
+
+        const float strength = std::clamp(params.motionStrength, 0.0f, 1.0f);
+        if (strength <= 0.0f) return;
+
+        const float heave = std::clamp(motion.heaveG, -2.0f, 2.0f) * strength;
+        const XrVector3f localOffset{ 0.0f, heave * 0.004f, 0.0f };
+        const XrVector3f worldOffset = QuatRotateVector(pose.orientation, localOffset);
+        pose.position.x += worldOffset.x;
+        pose.position.y += worldOffset.y;
+        pose.position.z += worldOffset.z;
     }
 
     // Extracts only the yaw (rotation around the world "up"/Y axis) from a
@@ -1825,6 +1863,7 @@ namespace
         }
 
         const auto panels = IpcServer::GetPanelsSnapshot();
+        const HousingMotionSample housingMotion = UpdateHousingMotion();
 
         static int s_frameLogCounter = 0;
         if ((s_frameLogCounter++ % 90) == 0)
@@ -2002,6 +2041,11 @@ namespace
                 // Head-locked (or no LOCAL space available): panel offset
                 // directly in VIEW/app space, following the headset.
                 quad.pose = offsetPose;
+            }
+
+            if (panel.hasHousing)
+            {
+                ApplyHousingMotion(quad.pose, panel.housing, housingMotion);
             }
 
             quad.size.width = panel.widthMeters;
